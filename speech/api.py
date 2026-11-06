@@ -1096,10 +1096,7 @@ async def _tts_say_once(tts_text: str, language: Optional[str]) -> dict:
                          "character_id": TTS_CHARACTER_ID, "audio_format": TTS_AUDIO_FORMAT}
         if language:
             payload["language"] = language
-        va_enabled, va_voice, va_map = voice_adapter.live_state()
-        if va_enabled:
-            payload["text"] = voice_adapter.remap_leading_tag(payload["text"], va_map)
-            payload["character_id"] = va_voice
+        voice_adapter.adapt_request(payload)
         await sio.emit("tts_request_gateway", payload)
         return await asyncio.wait_for(done, _TTS_SAY_TIMEOUT_S)
     finally:
@@ -1433,13 +1430,10 @@ class TTSClient:
             }
             if language:
                 payload["language"] = language
-            va_enabled, va_voice, va_map = voice_adapter.live_state()
-            if va_enabled:
-                # Old-voice path: translate the leading V2 tag into a V1 id and swap the
-                # speaker. The V2 `emotion` reported to the browser/avatar is untouched
-                # (one tag, two vocabularies, two consumers).
-                payload["text"] = voice_adapter.remap_leading_tag(payload["text"], va_map)
-                payload["character_id"] = va_voice
+            # Fit the request to the voice (speech/voice_adapter.py): remap → V1 tag + speaker,
+            # direction → written delivery direction + cfg_scale. The V2 `emotion` reported to the
+            # browser/avatar is untouched (one tag, two vocabularies, two consumers).
+            voice_adapter.adapt_request(payload)
             await self.sio.emit("tts_request_gateway", payload)
             return True
         except Exception as e:
@@ -1471,16 +1465,25 @@ class TTSClient:
             await self.session._on_tts_event("error", data or {})
 
 
-# ---------------------- voice adapter (V2 → V1 emotion remap) ---------------------- #
-# Backward-compatible controller for old-vocabulary voices; see speech/voice_adapter.py.
+# ---------------------- voice adapter (69 keys → the voice's own vocabulary) ---------------------- #
+# remap (V1 voices), direction (instruction voices) or off; see speech/voice_adapter.py.
+
+def _voice_map_view(state) -> dict:
+    return {"ok": True, "mode": state.mode, "voice": state.voice, "map": state.map,
+            "directions": state.directions, "cfg_scale": state.cfg_scale}
+
 
 @app.get("/api/voice_map")
 async def voice_map_get():
-    enabled, voice, full = voice_adapter.live_state()
     return {
-        "ok": True, "enabled": enabled, "voice": voice, "map": full,
+        **_voice_map_view(voice_adapter.live_state()),
+        "modes": list(voice_adapter.MODES),
         "defaults": voice_adapter.DEFAULT_MAP, "v1_ids": voice_adapter.V1_IDS,
         "v1_voices": voice_adapter.V1_VOICES, "v2_grouped": voice_adapter.V2_GROUPED,
+        "default_directions": voice_adapter.DEFAULT_DIRECTIONS,
+        "default_cfg_scale": voice_adapter.DEFAULT_CFG_SCALE,
+        "cfg_scale_range": [voice_adapter.CFG_SCALE_MIN, voice_adapter.CFG_SCALE_MAX],
+        "vocal_events": voice_adapter.VOCAL_EVENTS,
         "native_character": TTS_CHARACTER_ID,
     }
 
@@ -1493,16 +1496,14 @@ async def voice_map_set(request: Request):
         raise HTTPException(status_code=400, detail="Invalid JSON.") from None
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Invalid voice map payload.")
-    voice_adapter.save_state(payload.get("enabled"), payload.get("voice"), payload.get("map"))
-    enabled, voice, full = voice_adapter.live_state()
-    return {"ok": True, "enabled": enabled, "voice": voice, "map": full}
+    voice_adapter.save_state(payload)
+    return _voice_map_view(voice_adapter.live_state())
 
 
 @app.post("/api/voice_map/reset")
 async def voice_map_reset():
     voice_adapter.reset_state()
-    enabled, voice, full = voice_adapter.live_state()
-    return {"ok": True, "enabled": enabled, "voice": voice, "map": full}
+    return _voice_map_view(voice_adapter.live_state())
 
 
 # ---------------------- Live2D avatar: registry, banks, model files ---------------------- #
@@ -2696,6 +2697,8 @@ class DialogSession:
         # 分句器：给 TTS 喂短句。首句快、后续顺。详见 sentence_splitter.py。
         self._sentence_splitter = StreamingSplitter()
         self._tts_sentence_queue: deque = deque()
+        # direction voices: a vocal event (`(sigh)`) waiting to open the next queued sentence
+        self._pending_vocal_event: Optional[str] = None
         self._tts_inflight: Optional[dict] = None
         # 已派发但前端还没报"播完"的声效 idx 集合：用于完成判定（声效不走 inflight，
         # 没有这个集合的话最后一段是声效时会在 ai_end 误判成"已排空"提前发 speech_done）
@@ -2784,6 +2787,7 @@ class DialogSession:
         self._deep_extractor.reset()
         self._sentence_splitter.reset()
         self._tts_sentence_queue.clear()
+        self._pending_vocal_event = None
         self._tts_inflight = None
         self._tts_next_idx = 0
         self._tts_first_audio_sent = False
@@ -3233,13 +3237,19 @@ class DialogSession:
         for emotion_key, delta in parts:
             if not delta:
                 continue
-            # 声效哨兵：标签处强制分句（把声效前攒的半句以"前一句情绪"挤出来），
-            # 再把声效作为独立项入队（不送 TTS、不进显示文本）。
+            # 声效哨兵：标签处强制分句（把声效前攒的半句以"前一句情绪"挤出来）。
+            # direction 模式下能由声音自己发出的声效（VOCAL_EVENTS）写进下一句的开头；
+            # 其余声效作为独立项入队（不送 TTS、不进显示文本）。
             sfx_name = parse_sfx_delta(delta)
             if sfx_name is not None:
                 for s in self._sentence_splitter.flush():
-                    self._tts_sentence_queue.append((emotion_key, s, self._tts_kind))
-                self._tts_sentence_queue.append((_SFX_QUEUE, (sfx_name, emotion_key), self._tts_kind))
+                    self._enqueue_sentence(emotion_key, s)
+                event = voice_adapter.vocal_event(sfx_name)
+                if event:
+                    self._pending_vocal_event = (
+                        f"{self._pending_vocal_event} {event}" if self._pending_vocal_event else event)
+                else:
+                    self._tts_sentence_queue.append((_SFX_QUEUE, (sfx_name, emotion_key), self._tts_kind))
                 produced = True
                 continue
             await self._send({
@@ -3253,16 +3263,21 @@ class DialogSession:
             sentences = self._sentence_splitter.feed(delta)
             if sentences:
                 for s in sentences:
-                    self._tts_sentence_queue.append((emotion_key, s, self._tts_kind))
+                    self._enqueue_sentence(emotion_key, s)
                 produced = True
             if delta == "\n":
                 # 段封闭哨兵：把本段未达 min_len 的残留强制归到当前 tone
                 residue = self._sentence_splitter.flush()
                 if residue:
                     for s in residue:
-                        self._tts_sentence_queue.append((emotion_key, s, self._tts_kind))
+                        self._enqueue_sentence(emotion_key, s)
                     produced = True
         return produced
+
+    def _enqueue_sentence(self, emotion_key, sentence: str):
+        """Queue one sentence for TTS; a pending vocal event rides on it (TTS text only)."""
+        event, self._pending_vocal_event = self._pending_vocal_event, None
+        self._tts_sentence_queue.append((emotion_key, sentence, self._tts_kind, event))
 
     def _flush_splitter_with_tone(self, tone_key) -> bool:
         """无条件 flush 分句器，残留按给定 tone 入 TTS 队列。"""
@@ -3270,7 +3285,7 @@ class DialogSession:
         if not residue:
             return False
         for s in residue:
-            self._tts_sentence_queue.append((tone_key, s, self._tts_kind))
+            self._enqueue_sentence(tone_key, s)
         return True
 
     async def _handle_committed_event(self, event_type: str, turn_id: str, data: dict):
@@ -3358,7 +3373,7 @@ class DialogSession:
                     or self._deep_extractor.current_emotion_key
                 )
                 for s in residue:
-                    self._tts_sentence_queue.append((residue_key, s, self._tts_kind))
+                    self._enqueue_sentence(residue_key, s)
             self._ai_end_received = True
             # Text displayed in the standalone UI must survive the next turn even
             # with voice disabled or unavailable. Await the brain's acknowledgement.
@@ -3546,6 +3561,7 @@ class DialogSession:
         item = self._tts_sentence_queue.popleft()
         key, payload = item[0], item[1]
         kind = item[2] if len(item) > 2 else None
+        vocal_event = item[3] if len(item) > 3 else None
         # 声效项：不请求 TTS，直接派发 tts_sfx 事件让前端播本地音效，然后继续下一项。
         if key is _SFX_QUEUE:
             await self._dispatch_sfx(payload, kind)
@@ -3564,7 +3580,7 @@ class DialogSession:
         # 词替换只改发给 Freya 的发音文本（spoken）；前端展示用的 sentence 保持原样。
         # 语言检测也按 spoken 走（替换可能改变脚本，如英文->假名）。
         spoken = apply_wordmap(sentence, "tts")
-        tts_text = prefix_emotion(emotion_key, "." + spoken)
+        tts_text = prefix_emotion(emotion_key, "." + (f"{vocal_event} " if vocal_event else "") + spoken)
         # 按句检测语言：Chinese / Japanese / English 直接传给 TTS；MIXED 或纯汉字句
         # 用本轮大脑给的 reply_lang 定（没有 reply_lang 时 MIXED 仍不传，让 TTS 按角色默认走）。
         tts_language = self._tts_language(spoken)

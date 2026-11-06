@@ -13,7 +13,7 @@ it in the speech environment; it binds to 127.0.0.1.
 | `models/` | the SenseVoiceSmall files, not in git: `scripts/download_sensevoice.py` (see `models/DOWNLOAD.md`) |
 | `hane_parser.py`, `po_contract.py` | streaming parsers for the surface/deep output (`po_contract.py` is identical to `brain/po_contract.py`) |
 | `sentence_splitter.py`, `tts_emotion.py`, `tts_pause.py`, `tts_sfx.py` | sentence splitting, emotion tags, pauses, sound-effect tags |
-| `voice_adapter.py` | maps her 69 emotion keys to old-style voice ids (see `docs/TTS.md`) |
+| `voice_adapter.py` | fits her 69 emotion keys to the voice: old-style voice ids, written directions or raw (see `docs/TTS.md`) |
 | `stt_carry.py` | carries a force-committed STT segment into the next turn |
 | `static/flow.html` | the interactive architecture map at `/flow` |
 

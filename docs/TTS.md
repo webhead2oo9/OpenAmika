@@ -22,7 +22,9 @@ With the default settings (voice adapter ON → old-vocabulary voice ids), the w
   "text":         "【happy2】.今日もおつかれさま。",   // emotion tag first, then the sentence
   "character_id": "MekaHime_Amika",                      // settings.json → tts_character (adapter may swap it)
   "audio_format": "wav",                                  // browsers decode containers, not raw opus
-  "language":     "Japanese"                              // optional: Chinese | English | Japanese
+  "language":     "Japanese",                             // optional: Chinese | English | Japanese
+  "instruction":  "…",                                    // optional (direction mode): delivery direction
+  "cfg_scale":    3.0                                     // optional (direction mode): guidance, 1–5
 }
 
 // on("audio_ready")   — one per request (filter by task_id)
@@ -33,6 +35,8 @@ With the default settings (voice adapter ON → old-vocabulary voice ids), the w
 - One request per sentence; `turn_id` lets a server keep one turn's sentences in order.
 - `GET /ping` answering `ok` is what the launcher and the Setup page poll for health.
 - `audio` is the encoded file (WAV by default); `audio_duration` is in seconds.
+- A server ignores request fields it does not use (`instruction` and `cfg_scale` only matter to
+  instruction-following voices).
 
 ## The OpenAmika voice server
 
@@ -72,22 +76,29 @@ the rest.
 - **Old-style voice ids (V1)**: 67 flat ids with intensity numbers (`happy2`, `tsun3`, `whisper1`, …),
   the vocabulary of MekaHime's GPT-SoVITS voices, Amika's included.
 
-## The voice adapter (default: ON)
+## The voice adapter (default: V1 tags)
 
-`speech/voice_adapter.py` bridges the internal vocabulary to V1-style voice ids and is **enabled by
-default** (defaults in code; `config/voice_map.json` is written when you change it on the Setup page):
+`speech/voice_adapter.py` fits every request to the voice server. Setup → Voice picks the mode (defaults in code;
+`config/voice_map.json` is written when you change it there):
 
-- the brain **always** emits the 69-key tag; the adapter rewrites **only the leading tag** of the
-  outgoing TTS text into an old id via a validated 69→67 map, and swaps `character_id` to the configured
-  voice;
-- the `emotion` reported to the browser/avatar **stays the new key**, so face and voice never disagree;
-- idempotent (an already-old tag passes through; untagged text gets `【neutral1】`);
-- the map is hot-reloaded (mtime-gated, last-good on parse errors) and validated cell-by-cell on read; a
-  stale or hand-edited file degrades safely to the defaults;
-- Setup → Voice gives you the per-cell grid (changed cells highlight), enable/disable, and reset.
+- **V1 tags (`remap`, the default)**: the brain **always** emits the 69-key tag; the adapter rewrites **only the
+  leading tag** of the outgoing TTS text into an old id via a validated 69→67 map, and swaps `character_id` to the
+  configured voice. Idempotent (an already-old tag passes through; untagged text gets `【neutral1】`).
+- **Written directions (`direction`)**, for instruction-following voices such as Breeze TTS 2
+  (`vendor/breeze-bridge`): the leading tag and the speech layer's `.` anchor are removed, and the request carries
+  `instruction`, its register's direction with `{emotion}` filled in (`serious_very_angry` → the `serious` text,
+  `very angry`), and one `cfg_scale` (default 3). The speaker is `tts_character`. The sound-effect tags the voice can
+  make itself (`Laugh`, `Can_t_help_laughing` → `(laugh)`, `Sigh` → `(sigh)`, `Light_cough` → `(cough)`,
+  `Throat_clear` → `(clears throat)`) open the next sentence's text instead of playing as local files; the other
+  four keep the local-file path. A tag after her last sentence is dropped.
+- **Off**: requests untouched, for a voice that understands the 69 keys directly (set `tts_character`).
 
-**Your own voice or server:** if it understands the 69 internal keys directly (or ignores tags), switch the
-adapter off on Setup → Voice and set `tts_character` in `settings.json` to your voice id (that value is used
-whenever the adapter is off). If it uses flat ids like `happy2`, keep the adapter on, set its voice on Setup →
-Voice (the adapter sends its own voice id, default `MekaHime_Amika`) and tune the grid by ear; remapping is a
-voice-acting decision per voice.
+In every mode the `emotion` reported to the browser/avatar **stays the 69-key tag**, so face and voice never
+disagree. The file is hot-reloaded (mtime-gated, last-good on parse errors) and validated on read; a stale or
+hand-edited file degrades safely to the defaults. Setup → Voice has the per-cell V1 grid (changed cells highlight),
+the five directions and the guidance value, and reset.
+
+**Your own voice or server:** if it understands the 69 internal keys directly (or ignores tags), pick *Off* and set
+`tts_character` in `settings.json` to your voice id. If it uses flat ids like `happy2`, keep *V1 tags*, set its voice
+on Setup → Voice (default `MekaHime_Amika`) and tune the grid by ear; remapping is a voice-acting decision per voice.
+If it follows written directions, pick *Written directions* and write them for your voice.

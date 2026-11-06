@@ -96,7 +96,7 @@
   <section class="tech-card rv" style="--d:6">
     <div class="oa-grid cols-3" style="margin-bottom:14px;">
       <div class="field"><label>TTS server</label><div id="ttsUrlShow" class="mono" style="padding:9px 2px; color:var(--muted);">—</div></div>
-      <div class="field" data-pro><label>Adapter-off character (settings.json)</label><div id="ttsCharShow" class="mono" style="padding:9px 2px; color:var(--muted);">—</div></div>
+      <div class="field" data-pro><label>Voice when the adapter does not swap it (settings.json tts_character)</label><div id="ttsCharShow" class="mono" style="padding:9px 2px; color:var(--muted);">—</div></div>
       <div class="field"><label>Reachability</label><div style="display:flex;align-items:center;gap:8px;padding:9px 2px;"><span class="dot" id="ttsDot"></span><span class="card-hint" id="ttsDotNote">probing…</span></div></div>
     </div>
     <p class="card-hint" data-simple>
@@ -105,26 +105,42 @@
     </p>
     <p class="card-hint" data-pro>
       Internally she always speaks the <b>69-key</b> <code>register_emotion</code> vocabulary — the prompts, parsers and
-      Live2D banks are built on it. The voice OpenAmika <b>ships is a V1 (old-vocabulary)</b> voice
-      (<code>MekaHime_Amika</code>, her own) with its flat tag set (<code>happy2</code>, <code>tsun3</code>…),
-      so the <b>voice adapter</b> below is <b>on by default</b>: it rewrites the leading emotion tag into the mapped V1 id and
-      swaps the speaker — while her face keeps the original 69-key tag. Turn it off only if you bring your own
-      V2-native voice. The 69→67 mapping is yours to tune per cell.
+      Live2D banks are built on it. The <b>voice adapter</b> fits each sentence to the voice server, in one of three modes:
+      <b>V1 tags</b> (the shipped default, for <code>MekaHime_Amika</code>, her own voice: the leading emotion tag becomes
+      the mapped old id, <code>happy2</code>, <code>tsun3</code>…, and the speaker is swapped);
+      <b>written directions</b> (for instruction-following voices such as Breeze TTS 2 through
+      <code>vendor/breeze-bridge</code>: each sentence carries its register's direction and one guidance value, the
+      speaker is <code>tts_character</code>, and <code>Laugh</code> / <code>Sigh</code> / <code>Light_cough</code> /
+      <code>Throat_clear</code> become sounds in her voice); or <b>off</b> (raw 69-key tags, for a V2-native voice).
+      Her face always keeps the original 69-key tag.
     </p>
     <div style="display:flex; align-items:center; gap:14px; margin:14px 0; flex-wrap:wrap;" data-pro>
-      <label style="display:inline-flex;align-items:center;gap:10px;font-weight:600;">
-        <span class="switch"><input type="checkbox" id="vmapEnabled"><span class="track"></span></span>
-        Voice adapter (shipped default: on)
-      </label>
-      <div class="field" style="min-width:220px;"><label>V1 voice (character_id)</label>
+      <div class="field" style="min-width:240px;"><label>Voice adapter</label>
+        <select id="vmapMode">
+          <option value="remap">V1 tags (shipped default)</option>
+          <option value="direction">Written directions</option>
+          <option value="off">Off: raw 69-key tags</option>
+        </select>
+      </div>
+      <div class="field" style="min-width:220px;" id="vmapVoiceField"><label>V1 voice (character_id)</label>
         <input type="text" id="vmapVoice" list="vmapVoices" placeholder="MekaHime_Amika"><datalist id="vmapVoices"></datalist>
       </div>
+      <div class="field" style="width:150px;" id="vdirCfgField"><label>Guidance (cfg_scale)</label>
+        <input type="number" id="vdirCfg" step="0.5" min="1" max="5" placeholder="3">
+      </div>
       <button class="btn small" id="vmapSave">Save voice settings</button>
-      <button class="editorial-link" id="vmapReset" data-pro>Reset map to defaults →</button>
+      <button class="editorial-link" id="vmapReset" data-pro>Reset to defaults →</button>
     </div>
     <details class="oa-details" id="vmapDetails" data-pro>
       <summary>Emotion map — 69 new keys → 67 old ids</summary>
       <div class="inner"><div class="vmap-grid" id="vmapGrid"><div class="card-hint">Loading…</div></div></div>
+    </details>
+    <details class="oa-details" id="vdirDetails" data-pro>
+      <summary>Delivery directions — one per register</summary>
+      <div class="inner">
+        <p class="card-hint"><code>{emotion}</code> becomes the sentence's emotion in words (<code>casual_very_happy</code> → <code>very happy</code>). An empty box uses the default.</p>
+        <div class="vmap-cells" id="vdirGrid"><div class="card-hint">Loading…</div></div>
+      </div>
     </details>
   </section>
 

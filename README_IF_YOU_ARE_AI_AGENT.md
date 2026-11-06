@@ -89,10 +89,14 @@ ever disagree, the code wins, and you should fix this file in the same change.
   - `whisper_` (10): neutral happy smile caring relieved shy sad worried tearful sleepy
 - **Voice tags (the V1 vocabulary)**: her voice speaks 69 tags written `【happy2】` (the 67 `V1_IDS` in
   `speech/voice_adapter.py` plus `happy4` and `sad4`), each with a recorded reference clip.
-  `speech/voice_adapter.py` maps each V2 key to a V1 tag at the TTS seam (on by default; `config/voice_map.json`
-  holds edits made on Setup → Voice); the browser and the avatar always get the V2 key, so face and voice agree.
+  `speech/voice_adapter.py` maps each V2 key to a V1 tag at the TTS seam (mode `remap`, the default;
+  `config/voice_map.json` holds edits made on Setup → Voice); the browser and the avatar always get the V2 key, so face
+  and voice agree. Its `direction` mode serves instruction-following voices (Breeze TTS 2 through
+  `vendor/breeze-bridge`): the tag becomes a written per-register direction plus one `cfg_scale`; `off` sends raw tags.
 - **Sound effects**: nine closed names (`Laugh`, `Can_t_help_laughing`, `Soft_hmph`, `Sigh`, `Deep_breath`, `Yawn`,
-  `Sniff`, `Light_cough`, `Throat_clear`) written `【Sigh】`. No SFX audio ships; the tags are parsed and stripped.
+  `Sniff`, `Light_cough`, `Throat_clear`) written `【Sigh】`. No SFX audio ships; the tags are parsed and stripped. In
+  `direction` mode `Laugh`, `Can_t_help_laughing`, `Sigh`, `Light_cough` and `Throat_clear` become inline vocal
+  events (`(laugh)`, `(sigh)`, `(cough)`, `(clears throat)`) on the next sentence, spoken in her voice.
 - **Her body**: `avatar/models/Amika/AmikaV4.model3.json` (Cubism) with 142 motions and 25 expressions;
   `avatar/models/Amika/banks.json` maps each of the 69 keys to expressions and motions (Setup → Avatar edits it);
   keys without an entry use motions named after them (`casual_happy.motion3.json`, `casual_happy.2.motion3.json`).
@@ -165,9 +169,10 @@ and the interactive map at `/flow`. Socket protocol: [brain/PROTOCOL.md](brain/P
 | `brain/po_contract.py` = `speech/po_contract.py` | the shared output contract: emotion keys, SFX, parsing, template self-check |
 | `brain/表层.txt`, `例子.txt`, `思考.txt`, `scenes.json` (+ `brain/defaults/`) | her persona (§1) |
 | `speech/api.py` | the gateway: pages, STT, `WS /ws/dialog`, TTS client, avatar registry, vision relay, control proxies |
-| `speech/hane_parser.py`, `sentence_splitter.py`, `tts_emotion.py`, `tts_pause.py`, `tts_sfx.py`, `voice_adapter.py`, `stt_carry.py` | streaming parse, sentence split, emotion tags, pauses, SFX tags, V2→V1 voice tags, carry-over of forced STT splits |
+| `speech/hane_parser.py`, `sentence_splitter.py`, `tts_emotion.py`, `tts_pause.py`, `tts_sfx.py`, `voice_adapter.py`, `stt_carry.py` | streaming parse, sentence split, emotion tags, pauses, SFX tags, emotion tags → the voice's vocabulary (V1 tags or written directions), carry-over of forced STT splits |
 | `speech/model.py`, `speech/utils/` | SenseVoice model code (FunAudioLLM, MIT); `speech/models/` holds the weights (not in git) |
 | `vendor/tts-engine/main.py` | her voice server (MIT, derived from the OpenSakura voice server); everything else in that folder is built by `setup_tts.py` |
+| `vendor/breeze-bridge/main.py` | optional voice server: speaks the TTS contract in front of a separately run Breeze-TTS-2.cpp `breeze-server` (non-commercial weights; you install it) |
 | `vision/vlm_service.py` | her eyes: a small local VLM describing the camera feed; `--check`, `--download` |
 | `messengers/service.py`, `core.py` | "Text her" on Discord / Telegram (`config/messengers.json`) |
 | `ui/` | the pages: `use.*` (stage, power, mic, telemetry, first-run wizard), `setup.*`, `tools.*`, `about.*`; `common.js` (nav, the health light), `live2d-engine.js` (Live2D playback, lipsync), `vendor/` (PixiJS, pixi-live2d-display, Live2D Cubism Core) |

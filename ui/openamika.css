@@ -691,6 +691,9 @@ select option, select optgroup { background: #241627; color: var(--pearl); }
 .vmap-cell select { padding: 5px 9px; font-size: 13px; border-radius: 8px; }
 .vmap-cell.changed label { color: var(--primary); }
 .vmap-cell.changed select { border-color: rgba(216, 180, 226, .65); background: rgba(216, 180, 226, .13); }
+.vmap-cell textarea { padding: 6px 9px; font-size: 13px; border-radius: 8px; resize: vertical; }
+.vmap-cell.changed textarea { border-color: rgba(216, 180, 226, .65); background: rgba(216, 180, 226, .13); }
+#vdirGrid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 
 .server-card { margin-bottom: 14px; }
 /* the iot server card embedded in the Smart Home and IoT panel: a divider row, not a card inside a card */
