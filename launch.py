@@ -26,7 +26,7 @@ What happens
      (docs/IOT_DISCLAIMER.md) is accepted on the Tools page; accepted while running, they start then.
   4. Open the web UI. Ctrl+C stops everything this launcher started.
 
-The optional local embedding service (brain/embed_server.py, BAAI/bge-m3 cut to 768 dims) starts before
+The optional local embedding service (brain/embed_server.py, google/embeddinggemma-2 at 768 dims) starts before
 the brain when settings.json has an `embedder` block; the brain reaches it through AMIKA_EMBEDDING_URL.
 """
 import argparse
@@ -1391,7 +1391,7 @@ def core_services(cfg, emb, vis):
     if emb:
         out.append(Service('embedder', [emb['python'], '-u', str(ROOT / 'brain/embed_server.py'),
                                         '--port', str(int(emb['port'])), '--model', emb['model'], '--tag', emb['tag'], '--dims', str(int(emb['dims'])),
-                                        '--dtype', emb.get('dtype', 'fp16'), '--device', emb.get('device', 'cuda')],
+                                        '--dtype', emb.get('dtype', 'bf16'), '--device', emb.get('device', 'cuda')],
                            cwd=ROOT / 'brain', env=env, health=f"http://127.0.0.1:{int(emb['port'])}/health", expect_ok=True,
                            timeout=int(emb.get('load_timeout_s', 240)), kind='core', url=f"http://127.0.0.1:{int(emb['port'])}"))
     out.append(Service('brain', [cfg['brain_python'], '-u', str(ROOT / 'brain/webui.py')], cwd=ROOT / 'brain', env=env,

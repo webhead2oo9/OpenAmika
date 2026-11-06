@@ -38,7 +38,7 @@ licenses (details in THIRD_PARTY_NOTICES.md):
   (https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_en.html),
   NOT under the MIT License above. Publishing your own product built with it
   may also require Live2D's SDK release license; check Live2D's terms.
-- Models downloaded at run time (BAAI/bge-m3 for memory search, the optional
+- Models downloaded at run time (google/embeddinggemma-2 for memory search, the optional
   vision models, any Ollama or OpenRouter model you choose) are under their
   own licenses and are not part of this repository.
 - Amika's character — her name, design and likeness — is (C) MekaHime Inc.

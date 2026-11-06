@@ -32,7 +32,7 @@
   },
   "drain_max_per_phase": 4,
   "embedding_provider": "local",
-  "embedding_model": "bge-m3-d768",
+  "embedding_model": "embeddinggemma-2-d768",
   "embedding_url": "http://127.0.0.1:8011",
   "city": "",
   "onboarded": false

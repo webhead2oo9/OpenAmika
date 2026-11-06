@@ -70,7 +70,7 @@ in `config/build_f.json` switch it.
 
 Every protected turn is archived as **evidence** (quotes, not summaries). A writer model extracts
 facts with their verbatim quotes; corrections supersede old facts but never erase them. Retrieval is
-hybrid BM25 + local bge-m3 embeddings, rendered into the prompt as natural language ("三个月前的上午，
+hybrid BM25 + local EmbeddingGemma 2 embeddings, rendered into the prompt as natural language ("三个月前的上午，
 {user_name}说：…") with perceived-time phrases — no machine syntax ever reaches her.
 
 ## Her situation (the shipped story)

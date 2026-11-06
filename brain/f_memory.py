@@ -221,7 +221,7 @@ class MemoryRuntime:
         self.reset_path = self.folder / "reset.json"
         self.extract_fn, self.embed_fn = extract_fn, embed_fn
         # The embedding model behind every document and query vector of this profile (2026-10-05:
-        # configurable; "gemini-embedding-2" or the local "bge-m3-d768"). embedding.json records it.
+        # configurable; "gemini-embedding-2" or a local tag such as "embeddinggemma-2-d768"). embedding.json records it.
         self.embedding_model = str(embedding_model or EMBEDDING_MODEL)
         self.marker_path = self.folder / "embedding.json"
         self.budget_chars = max(0, int(budget_chars))

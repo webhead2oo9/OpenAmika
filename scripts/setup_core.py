@@ -17,10 +17,10 @@ What it makes, all inside this folder and all git-ignored:
     envs/brain     Python 3.11 venv + brain/requirements.txt: the brain and the launcher (no GPU)
     envs/speech    + torch/torchaudio (CUDA 12.8) + speech/requirements.txt: speech recognition, every web page, the
                    Discord/Telegram service
-    envs/embed     + torch + brain/requirements-embedder.txt: her memory's embedder (BAAI/bge-m3)
+    envs/embed     + torch + torchvision + brain/requirements-embedder.txt: her memory's embedder (google/embeddinggemma-2)
     envs/vision    + torch + vision/requirements.txt: her eyes (Qwen3-VL-2B); only with --vision on / a 16 GB GPU
     speech/models/ SenseVoiceSmall (~940 MB) by scripts/download_sensevoice.py, every file pinned by SHA-256
-    the Hugging Face cache (HF_HOME, by default ~/.cache/huggingface): BAAI/bge-m3 (~2.3 GB), and
+    the Hugging Face cache (HF_HOME, by default ~/.cache/huggingface): google/embeddinggemma-2 (~1.5 GB), and
                    Qwen/Qwen3-VL-2B-Instruct (~4.3 GB) with her eyes, so the first start does not wait for them
     settings.json  from settings.example.json, pointing at these environments (an existing one is never changed);
                    written after the environments, so a run stopped half-way never leaves it naming missing ones
@@ -64,7 +64,7 @@ TORCH_INDEX = {"cuda": "https://download.pytorch.org/whl/cu128", "cpu": "https:/
 TORCH_LOCAL = {"cuda": "+cu128", "cpu": "+cpu", "mac": ""}
 VISION_MIN_MIB = 15000        # "auto" gives her eyes to cards of 16 GB and more: next to her ears, memory and voice
                               # (~6 GB with their CUDA contexts) the vision model needs ~4.3 GB more
-EMBED_MODEL_DEFAULT = "BAAI/bge-m3"
+EMBED_MODEL_DEFAULT = "google/embeddinggemma-2"
 VISION_MODEL_DEFAULT = "qwen3-vl-2b"
 VLM_SERVICE = Path(__file__).resolve().parent.parent / "vision" / "vlm_service.py"   # its MODELS: key -> repository
 # settings.json interpreter -> (the envs\ folder this script makes for it, the summary row of that environment)
@@ -80,8 +80,9 @@ ENV_SPECS = {
     "speech": ("speech", "speech/requirements.txt", ("torch", "torchaudio"),
                ["torch", "torchaudio", "soundfile", "numpy", "fastapi", "uvicorn", "funasr", "modelscope", "silero_vad",
                 "socketio", "aiohttp", "multipart"]),
-    "memory": ("embed", "brain/requirements-embedder.txt", ("torch",),
-               ["torch", "sentence_transformers", "transformers", "huggingface_hub"]),
+    # torchvision: EmbeddingGemma 2's processor imports its video processor even when only text is embedded
+    "memory": ("embed", "brain/requirements-embedder.txt", ("torch", "torchvision"),
+               ["torch", "torchvision", "sentence_transformers", "transformers", "huggingface_hub", "PIL"]),
     "vision": ("vision", "vision/requirements.txt", ("torch", "torchvision"),
                ["torch", "torchvision", "transformers", "accelerate", "qwen_vl_utils", "cv2", "PIL", "numpy", "fastapi",
                 "uvicorn", "websocket"]),

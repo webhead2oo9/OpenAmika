@@ -1,9 +1,9 @@
 """Local embedding service for the Amika memory (Build F / PromptOptimized clone).
 
-Serves BAAI/bge-m3 (fp16, CLS pooling, no prompts) cut to 768 dimensions, the drop-in chosen by
-Amika_Embedding_Experiment (results.md 2026-10-04: 15 ms per query on the RTX 5090, 33/83 battery-thread
-records reach the prompt vs Gemini's 32, hybrid R@8 0.961). Vectors: model output -> L2 normalise ->
-truncate to --dims -> L2 normalise again, exactly as the experiment's embed_with_model.py did.
+Serves google/embeddinggemma-2 (Apache 2.0; text encoder only, 270M parameters, bf16) at its native 768
+dimensions, with the model's own query / document task prompts. Any sentence-transformers model works with
+--model; one without prompts (BAAI/bge-m3, the earlier default, chosen by Amika_Embedding_Experiment) is
+encoded as is. Vectors: model output -> L2 normalise -> truncate to --dims -> L2 normalise again.
 
 Runs with a Python that has torch + sentence-transformers (brain/requirements-embedder.txt).
 Standard library only otherwise, so it needs no FastAPI. Started by launch.py before the brain.
@@ -45,9 +45,11 @@ def cached_snapshot(repo: str) -> bool:
     except OSError:
         return False
 
-DEFAULT_MODEL = "BAAI/bge-m3"
-DEFAULT_TAG = "bge-m3-d768"
+DEFAULT_MODEL = "google/embeddinggemma-2"
+DEFAULT_TAG = "embeddinggemma-2-d768"
 DEFAULT_DIMS = 768
+DEFAULT_DTYPE = "bf16"          # EmbeddingGemma overflows in fp16 (NaN vectors): bf16 on the GPU, fp32 on the CPU
+DOWNLOAD_HINT = "about 1.5 GB for google/embeddinggemma-2"
 MAX_TEXTS = 256
 MAX_CHARS = 20000
 
@@ -74,33 +76,56 @@ def finish(vectors, dims: int):
     return out
 
 
+def load_model(model_id: str, device: str, torch_dtype=None):
+    """SentenceTransformer for `model_id`. A multimodal model (EmbeddingGemma 2) is loaded as its text encoder
+    only: memory search embeds text, and the vision/audio encoders would only cost memory."""
+    from sentence_transformers import SentenceTransformer
+    from transformers import AutoConfig
+    config = AutoConfig.from_pretrained(model_id)
+    text_only = {k: None for k in ("vision_config", "audio_config") if getattr(config, k, None) is not None}
+    return SentenceTransformer(model_id, device=device, config_kwargs=text_only or None,
+                               model_kwargs={"torch_dtype": torch_dtype} if torch_dtype is not None else None)
+
+
+def embedding_dims(model) -> int:
+    dims = getattr(model, "get_embedding_dimension", None) or model.get_sentence_embedding_dimension
+    return int(dims() or 0)
+
+
 class LocalEncoder:
     """sentence-transformers wrapper; one GPU, so encodes are serialised."""
 
     def __init__(self, model_id: str, dims: int, dtype: str, device: str, max_length: int, tag: str):
         import torch
-        from sentence_transformers import SentenceTransformer
         self.torch = torch
         self.model_id, self.dims, self.tag, self.device = model_id, dims, tag, device
         td = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}[dtype]
         t0 = time.perf_counter()
-        self.model = SentenceTransformer(model_id, device=device, model_kwargs={"torch_dtype": td})
+        self.model = load_model(model_id, device, td)
         self.model.to(td)
         self.model.eval()
         limit = self.model.max_seq_length or max_length
         self.model.max_seq_length = min(max_length, limit)
-        self.native = int(self.model.get_sentence_embedding_dimension() or 0)
+        self.native = embedding_dims(self.model)
+        # the model's own task prompts (EmbeddingGemma: "task: search result | query: " / "title: none | text: ");
+        # a model without them (bge-m3) is encoded as is
+        prompts = getattr(self.model, "prompts", None) or {}
+        self.prompt_names = {task: task for task in ("query", "document") if prompts.get(task)}
         self.loaded_s = time.perf_counter() - t0
         self.lock = threading.Lock()
         if self.native and self.native < dims:
             raise RuntimeError(f"{model_id} produces {self.native} dims, fewer than the configured {dims}")
-        self.encode(["warm-up"], "query")
+        try:
+            self.encode(["warm-up"], "query")
+        except ValueError as exc:
+            raise RuntimeError(f"{model_id} gives unusable vectors in {dtype} ({exc}); use --dtype bf16 on the GPU "
+                               "or fp32 (EmbeddingGemma overflows in fp16)") from exc
 
     def encode(self, texts, task_type: str):
         with self.lock:
             with self.torch.inference_mode():
-                out = self.model.encode(list(texts), batch_size=32, convert_to_tensor=True,
-                                        normalize_embeddings=False, show_progress_bar=False)
+                out = self.model.encode(list(texts), prompt_name=self.prompt_names.get(task_type), batch_size=32,
+                                        convert_to_tensor=True, normalize_embeddings=False, show_progress_bar=False)
             raw = out.float().cpu().tolist()
         return finish(raw, self.dims)
 
@@ -189,7 +214,7 @@ def check(model_id: str) -> int:
         except Exception as exc:
             # not an error: the first start downloads it (online once), later starts run offline
             print(f"embed_server check: torch {torch.__version__} cuda={torch.cuda.is_available()}; "
-                  f"{model_id} not cached yet ({type(exc).__name__}): the first start downloads it (~2.3 GB for bge-m3)")
+                  f"{model_id} not cached yet ({type(exc).__name__}): the first start downloads it ({DOWNLOAD_HINT})")
             return 0
     print(f"embed_server check: torch {torch.__version__} cuda={torch.cuda.is_available()} "
           f"sentence-transformers {sentence_transformers.__version__} transformers {transformers.__version__}; "
@@ -202,10 +227,7 @@ def download(model_id: str) -> int:
     served), so the first start does not wait for it. scripts/setup_core.py runs this; a second run only re-checks."""
     t0 = time.perf_counter()
     try:
-        from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer(model_id, device="cpu")
-        dims = getattr(model, "get_embedding_dimension", None) or model.get_sentence_embedding_dimension
-        native = int(dims() or 0)
+        native = embedding_dims(load_model(model_id, "cpu"))
     except Exception as exc:  # noqa: BLE001  (reported in one line for the setup summary)
         print(f"embed_server download failed: {type(exc).__name__}: {str(exc)[:300]}", flush=True)
         return 1
@@ -219,7 +241,7 @@ def main() -> int:
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--tag", default=DEFAULT_TAG, help="name recorded in the ledger / vector marker")
     ap.add_argument("--dims", type=int, default=DEFAULT_DIMS)
-    ap.add_argument("--dtype", default="fp16", choices=["fp16", "bf16", "fp32"])
+    ap.add_argument("--dtype", default=DEFAULT_DTYPE, choices=["fp16", "bf16", "fp32"])
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--max-length", type=int, default=1024)
     ap.add_argument("--host", default="127.0.0.1")
@@ -235,10 +257,11 @@ def main() -> int:
         # weights are local: never ask the Hub (a reset connection during a HEAD request used to kill the load)
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
     else:
-        log(f"{args.model} is not in the Hugging Face cache yet: downloading it once (about 2.3 GB for BAAI/bge-m3)")
+        log(f"{args.model} is not in the Hugging Face cache yet: downloading it once ({DOWNLOAD_HINT})")
     log(f"loading {args.model} ({args.dtype}, {args.device}, dims {args.dims}, max_length {args.max_length})")
     encoder = LocalEncoder(args.model, args.dims, args.dtype, args.device, args.max_length, args.tag)
-    log(f"loaded in {encoder.loaded_s:.1f}s; native dims {encoder.native}; max_seq_length {encoder.model.max_seq_length}")
+    log(f"loaded in {encoder.loaded_s:.1f}s; native dims {encoder.native}; max_seq_length {encoder.model.max_seq_length}; "
+        f"task prompts {sorted(encoder.prompt_names) or 'none'}")
     server = make_server(encoder, args.host, args.port)
     log(f"serving http://{args.host}:{args.port} (GET /health, POST /embed)")
     try:

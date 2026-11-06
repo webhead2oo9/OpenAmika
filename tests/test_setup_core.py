@@ -137,7 +137,7 @@ def test_a_rerun_after_an_interrupted_first_run_ends_with_ok_settings(checkout, 
 
 
 def test_models_named_in_settings_json_are_the_ones_fetched(checkout):
-    assert core.chosen_models() == ("BAAI/bge-m3", "qwen3-vl-2b")
+    assert core.chosen_models() == ("google/embeddinggemma-2", "qwen3-vl-2b")
     cfg = core.settings_from_example("cuda", True)
     cfg["embedder"]["model"], cfg["vision"]["model"] = "intfloat/multilingual-e5-large", "smolvlm2-500m"
     (checkout / "settings.json").write_text(json.dumps(cfg), "utf-8")

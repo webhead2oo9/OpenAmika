@@ -28,7 +28,7 @@ Interactive version: open **/flow** in the running app (pan/zoom node map with f
         │                              · Home Assistant, any other MCP server
         ▼ POST /embed
 ┌───────────────────────────────┐
-│  EMBEDDER  embed_server.py    │  bge-m3 → 768 dims · port 8011 · local GPU
+│  EMBEDDER  embed_server.py    │  EmbeddingGemma 2 · 768 dims · port 8011 · local GPU
 └───────────────────────────────┘
 ```
 

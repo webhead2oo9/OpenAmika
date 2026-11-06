@@ -4,7 +4,7 @@ Query and document vectors from different models must never be mixed (Amika_Embe
 README), so switching the embedder means re-embedding every stored document vector in one pass while the
 brain is stopped. This script does that for one profile folder (memory_f/<profile>):
 
-  python -X utf8 migrate_embeddings.py --profile ..\\memory_f\\live --url http://127.0.0.1:8011 --model bge-m3-d768
+  python -X utf8 migrate_embeddings.py --profile ..\\memory_f\\live --url http://127.0.0.1:8011 --model embeddinggemma-2-d768
   python -X utf8 migrate_embeddings.py --profile ... --apply          # write; dry run otherwise
 
 What --apply does, in order:
@@ -183,7 +183,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--profile", required=True, help="memory_f/<profile> folder")
     ap.add_argument("--url", default=os.getenv("AMIKA_EMBEDDING_URL", "http://127.0.0.1:8011"))
-    ap.add_argument("--model", default="bge-m3-d768", help="model tag the service reports and the marker records")
+    ap.add_argument("--model", default="embeddinggemma-2-d768", help="model tag the service reports and the marker records")
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--release-pending", action="store_true",

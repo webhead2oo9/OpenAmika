@@ -116,7 +116,7 @@ speech answers. Ctrl+C (or `Stop_OpenAmika.bat`) stops everything this launcher 
 | launcher | `launch.py` | `envs/brain` | – | – | starts and watches the rest; writes `logs/` |
 | speech gateway | `speech/api.py` (FastAPI) | `envs/speech` (torch 2.10.0 + torchaudio, CUDA 12.8) | 53000 (`chat_port`) | `GET /health` | the browser (pages, `WS /ws/dialog`), the brain (Socket.IO client, `HANE_URL`), the voice server (Socket.IO client, `tts_url`), vision (`GET /api/latest`; relays camera frames on `WS /ws/vlm_feed`), messengers (`GET /api/status`) |
 | brain | `brain/webui.py` (Flask-SocketIO) | `envs/brain` (no torch) | 5202 (`brain_port`) | `GET /api/evo/health` | OpenRouter / Alibaba Model Studio / Ollama (LLM roles), the embedder (`POST /embed`), MCP servers (tools) |
-| embedder | `brain/embed_server.py` | `envs/embed` (torch 2.10.0, sentence-transformers) | 8011 (`embedder.port`) | `GET /health` | – (BAAI/bge-m3, cut to 768 dims) |
+| embedder | `brain/embed_server.py` | `envs/embed` (torch 2.10.0 + torchvision 0.25.0, sentence-transformers 6) | 8011 (`embedder.port`) | `GET /health` | – (google/embeddinggemma-2, text encoder, 768 dims) |
 | vision (her eyes) | `vision/vlm_service.py` | `envs/vision` (torch 2.10.0 + torchvision 0.25.0, transformers) | 8014 (`vision.port`) | `GET /api/health` | speech (`ws://127.0.0.1:53000/ws/vlm_feed`); only when `vision.enabled` |
 | messengers | `messengers/service.py` | `envs/speech` | 5215 (`messengers_port`) | `GET /health` | the brain (Socket.IO), Discord / Telegram |
 | her voice server | `vendor/tts-engine/main.py` (aiohttp + Socket.IO, GPT-SoVITS v2ProPlus) | `vendor/tts-engine/.venv` (torch 2.9.1, CUDA 12.8) | 8002 (`tts_url`, `services.tts`) | `GET /ping` (`503 loading` for ~20 s, then `ok`) | – |
@@ -150,7 +150,7 @@ and the interactive map at `/flow`. Socket protocol: [brain/PROTOCOL.md](brain/P
 | `Start_OpenAmika.bat` / `Stop_OpenAmika.bat` (`Stop_OpenAmika.ps1`) | start (reads `brain_python` from `settings.json`) / stop exactly what this folder started (by script path, `logs/instance.json`, and a launcher that this folder's brain python runs as a relative `launch.py`). The `.bat` ends with `pause`: from a terminal without a console use `powershell -NoProfile -ExecutionPolicy Bypass -File Stop_OpenAmika.ps1` |
 | `Tailscale_Serve_OpenAmika.bat` | maps `https://<machine>.<tailnet>.ts.net:8447/` to the speech port with Tailscale Serve (`off` removes it) |
 | `scripts/setup_windows.ps1` | Windows entry point: finds Python 3.11 (`py -3.11`, `python3.11`, `python`) and runs `scripts/setup_core.py` |
-| `scripts/setup_core.py` | her brain, ears, memory and eyes: `envs/brain`, `envs/speech`, `envs/embed`, `envs/vision`, SenseVoiceSmall, bge-m3, Qwen3-VL-2B (or the models an existing `settings.json` names), then `settings.json`, `brain/.env`; `--check`, `--cpu`, `--vision auto|on|off`, `--reinstall` |
+| `scripts/setup_core.py` | her brain, ears, memory and eyes: `envs/brain`, `envs/speech`, `envs/embed`, `envs/vision`, SenseVoiceSmall, EmbeddingGemma 2, Qwen3-VL-2B (or the models an existing `settings.json` names), then `settings.json`, `brain/.env`; `--check`, `--cpu`, `--vision auto|on|off`, `--reinstall` |
 | `scripts/setup_tts.py` | her voice, her Live2D model and the paper doll from Hugging Face (license prompt first) and the voice server in `vendor/tts-engine`; `--verify`, `--assets-only`, `--from-dir`, `--accept-voice-license`, `--skip-paper-doll`, `--cpu`, `--self-test` |
 | `scripts/MekaHime_Amika.manifest.json` | every file of `MekaHime/MekaHime_Amika` at the pinned revision with its size and SHA-256 (250 files, `VOICE_REV`), and in its `paper_doll` block the paper doll's 70 files (`live2d/Host/`, at `PAPER_DOLL_REV`) |
 | `scripts/download_sensevoice.py` | SenseVoiceSmall into `speech/models/` (6 files, SHA-256 pinned, ModelScope then Hugging Face; `--verify`) |
@@ -165,7 +165,7 @@ and the interactive map at `/flow`. Socket protocol: [brain/PROTOCOL.md](brain/P
 | `brain/f_persona.py` | Setup page persona editing and the OpenRouter key endpoint (writes `brain/.env`) |
 | `brain/f_reset.py` | wipe her memory / reset everything (idle-only, with backups) |
 | `brain/f_tools.py`, `brain/iot_disclaimer.py` | the tools layer (MCP client, capability block, post-speech clerk, agent jobs, agent health and autostart); the IoT safety statement rules |
-| `brain/embed_server.py` | local embedder (bge-m3 → 768 dims); `--check`, `--download` |
+| `brain/embed_server.py` | local embedder (EmbeddingGemma 2 text encoder → 768 dims, the model's query/document prompts); `--check`, `--download` |
 | `brain/po_contract.py` = `speech/po_contract.py` | the shared output contract: emotion keys, SFX, parsing, template self-check |
 | `brain/表层.txt`, `例子.txt`, `思考.txt`, `scenes.json` (+ `brain/defaults/`) | her persona (§1) |
 | `speech/api.py` | the gateway: pages, STT, `WS /ws/dialog`, TTS client, avatar registry, vision relay, control proxies |
@@ -193,7 +193,7 @@ and the interactive map at `/flow`. Socket protocol: [brain/PROTOCOL.md](brain/P
 | **the paper doll** (her helpers' stand-in, MekaHime's folded-paper shrine doll): `host.model3.json`, `host.moc3` (Cubism 5), `host.physics3.json`, `host.cdi3.json`, `host.2048/texture_00.png`, 64 `*.motion3.json` (`idle` 15, `talk` 14, `listen` 7, `think` 6, `happy` 9, `worried` 6, `surprise` 7), `banks.json` (`"role": "agent"`, its place on the stage) | the Use page, beside her while a task agent is switched on (§8.1) | same repository, `live2d/Host/`, at its own revision `PAPER_DOLL_REV` (`b3ffaf59`, the upload of 2026-11-05; an empty one downloads nothing and its row says so) | 70 files, 2.3 MB | `avatar/models/Host/` | size + SHA-256 of every file (the manifest's `paper_doll` block); every file the `.model3.json` names exists; `banks.json` says `"role": "agent"`; an edited `banks.json` is kept | `setup_tts.py` |
 | SenseVoiceSmall (`model.pt`, `config.yaml`, `configuration.json`, `am.mvn`, `chn_jpn_yue_eng_ko_spectok.bpe.model`, `tokens.json`) | speech recognition | ModelScope `iic/SenseVoiceSmall`, fallback Hugging Face `FunAudioLLM/SenseVoiceSmall` (not `tokens.json`) | 937 MB | `speech/models/` | size + SHA-256 (`download_sensevoice.py`) | `setup_core.py` |
 | Silero VAD | voice activity | inside the `silero-vad` pip package | small | `envs/speech` | – | `setup_core.py` |
-| BAAI/bge-m3 | her memory's embeddings | Hugging Face `BAAI/bge-m3` | ~2.3 GB | the Hugging Face cache (`HF_HOME`, default `~/.cache/huggingface/hub`) | loaded once by `embed_server.py --download` | `setup_core.py` (else the first start) |
+| google/embeddinggemma-2 | her memory's embeddings | Hugging Face `google/embeddinggemma-2` | ~1.5 GB | the Hugging Face cache (`HF_HOME`, default `~/.cache/huggingface/hub`) | loaded once by `embed_server.py --download` | `setup_core.py` (else the first start) |
 | Qwen3-VL-2B-Instruct | her eyes | Hugging Face `Qwen/Qwen3-VL-2B-Instruct` | ~4.3 GB | the Hugging Face cache | `vlm_service.py --download` loads its processor | `setup_core.py` with vision |
 | GPT-SoVITS code | voice server | `RVC-Boss/GPT-SoVITS` @ `b4570b876f5c` (git, or the zip checked by a tree SHA-256) | tens of MB | `vendor/tts-engine/GPT-SoVITS/` | commit; `TTS_infer_pack/TTS.py` SHA-256 | `setup_tts.py` |
 | HuBERT, RoBERTa, ERes2NetV2 speaker model | voice server | Hugging Face `lj1995/GPT-SoVITS` @ `8f88575` | 948 MB | `GPT-SoVITS/GPT_SoVITS/pretrained_models/` | size + SHA-256 | `setup_tts.py` |
@@ -207,10 +207,11 @@ never to the CDN it redirects to, never to a mirror (with `HF_ENDPOINT` set it l
 not sent to a mirror` and downloads anonymously), and it never prints or stores it. License text:
 https://huggingface.co/MekaHime/MekaHime_Amika/blob/main/LICENSE
 
-Disk, measured after a full install (with her eyes): about 43 GB. The environments take ~15 GB, the voice server
-~8 GB, the Hugging Face cache ~13 GB (more than the models' own size: bge-m3 is fetched in both of its weight formats,
-and without symlink support Windows can keep a model's file twice), SenseVoiceSmall ~1 GB and pip's download cache
-~6 GB (`pip cache purge`, run with any of the environments' pythons, gives that back once the setup is done).
+Disk, measured after a full install with bge-m3, the earlier embedder (with her eyes): about 43 GB. The environments
+take ~15 GB, the voice server ~8 GB, the Hugging Face cache ~13 GB (more than the models' own size: bge-m3 was fetched
+in both of its weight formats, and without symlink support Windows can keep a model's file twice; EmbeddingGemma 2 is
+one ~1.5 GB file), SenseVoiceSmall ~1 GB and pip's download cache ~6 GB (`pip cache purge`, run with any of the
+environments' pythons, gives that back once the setup is done).
 Two CUDA torch builds are downloaded: 2.10.0 for the core environments, 2.9.1 for the voice server.
 
 ## 5. Setup, step by step
@@ -255,7 +256,7 @@ OpenAmika setup summary (909 s)
   OK speech recognition  envs\speech\Scripts\python.exe (Python 3.11.9, created; speech/requirements.txt installed; torch 2.10.0+cu128, CUDA OK on NVIDIA GeForce RTX 5080)
   OK speech model        speech/models/ (SenseVoiceSmall, 6 files verified by SHA-256)
   OK memory (embedder)   envs\embed\Scripts\python.exe (Python 3.11.9, created; brain/requirements-embedder.txt installed; torch 2.10.0+cu128, CUDA OK on NVIDIA GeForce RTX 5080)
-  OK memory model        BAAI/bge-m3 in the Hugging Face cache (...\hub\models--BAAI--bge-m3, downloaded)
+  OK memory model        google/embeddinggemma-2 in the Hugging Face cache (...\hub\models--google--embeddinggemma-2, downloaded)
   OK vision (her eyes)   envs\vision\Scripts\python.exe (Python 3.11.9, created; vision/requirements.txt installed; torch 2.10.0+cu128, CUDA OK on NVIDIA GeForce RTX 5080)
   OK vision model        Qwen/Qwen3-VL-2B-Instruct in the Hugging Face cache (...\hub\models--Qwen--Qwen3-VL-2B-Instruct, downloaded)
   OK settings.json       created from settings.example.json (interpreters in envs\, speech on cuda:0, vision on)
@@ -429,7 +430,7 @@ takes: `ollama ps` while she talks (`SIZE` is the total, and `PROCESSOR` must re
 the same model: a second one must fit as well (both stay loaded for `keep_alive`, 30 min), or Ollama swaps them.
 
 Her own parts on the same card (measured on RTX 50-series cards): ears (SenseVoiceSmall + Silero VAD) ~1.2 GB,
-memory (bge-m3, fp16) ~1.4 GB, voice (GPT-SoVITS) ~2.5 GB, Windows and the browser ~1 GB: **~6 GB**; her eyes
+memory (bge-m3, fp16; EmbeddingGemma 2's text encoder is about half its size) ~1.4 GB, voice (GPT-SoVITS) ~2.5 GB, Windows and the browser ~1 GB: **~6 GB**; her eyes
 (Qwen3-VL-2B) add ~4.3 GB: **~10 GB**.
 
 | her GPU | a 27–32B model next to her | a 70B model next to her |
@@ -580,7 +581,7 @@ envs\brain\Scripts\python.exe launch.py --check
 | `local_model_url` | `http://127.0.0.1:11434/v1/chat/completions` | Ollama's OpenAI-compatible endpoint |
 | `speech_device` | `cuda:0` | STT device (`cpu` works, slower) |
 | `tts_url`, `tts_character` | `http://127.0.0.1:8002`, `MekaHime_Amika` | her voice server and the voice id (used when the voice adapter is off) |
-| `embedder` | python `envs\embed\Scripts\python.exe`, port 8011, model `BAAI/bge-m3`, tag `bge-m3-d768`, dims 768, dtype fp16, device cuda, load_timeout_s 600 | her memory's embedder |
+| `embedder` | python `envs\embed\Scripts\python.exe`, port 8011, model `google/embeddinggemma-2`, tag `embeddinggemma-2-d768`, dims 768, dtype bf16 (never fp16: it overflows), device cuda, load_timeout_s 600 | her memory's embedder |
 | `vision` | enabled (per the setup), python `envs\vision\Scripts\python.exe`, port 8014, model `qwen3-vl-2b` (also `qwen3-vl-4b`, `qwen2.5-vl-3b`, `smolvlm2-2.2b`, `smolvlm2-500m`), max_tokens 60, max_dps 1.0, device cuda, load_timeout_s 900 | her eyes |
 | `services.tts` | enabled; `vendor\tts-engine\.venv\Scripts\python.exe main.py --port 8002 --host 127.0.0.1 --character MekaHime_Amika` in `vendor\tts-engine`; health `http://127.0.0.1:8002/ping`; timeout 240 s | started by the launcher; keep `--character` equal to `tts_character` |
 | `services.mqtt`, `services.zigbee2mqtt` | disabled | the smart home (§8; the person enables them) |
@@ -856,7 +857,7 @@ Start with `envs\brain\Scripts\python.exe launch.py --check`, then `logs\<name>.
   character.json, the .ckpt/.pth weights and references/emotions.json; run scripts/setup_tts.py)` → her voice is
   missing: §5.3. `--character MekaHime_Amika not found` → the voice folder name differs from `tts_character`.
 - `embedder  no answer after 600s — still running, see logs/embedder.log` → usually the first start downloading
-  bge-m3 (`… is not in the Hugging Face cache yet: downloading it once`): wait; `setup_core.py` avoids this.
+  the model (`… is not in the Hugging Face cache yet: downloading it once`): wait; `setup_core.py` avoids this.
 - `speech  exited with code N — see logs/speech.log` (the browser never opens) → SenseVoice files missing or CUDA
   torch broken in `envs/speech`: `powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1 --check`, then
   the setup without `--check`.
