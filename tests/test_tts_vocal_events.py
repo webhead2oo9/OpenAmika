@@ -19,7 +19,8 @@ REMAP = va.default_state()
 
 def patched(state):
     adapter = SimpleNamespace(vocal_event=lambda name: va.vocal_event(name, state),
-                              adapt_request=lambda payload: va.adapt_request(payload, state))
+                              adapt_request=lambda payload: va.adapt_request(payload, state),
+                              live_state=lambda: state, MODE_DIRECTION=va.MODE_DIRECTION)
     return mock.patch.dict(harness.NS, {
         "voice_adapter": adapter, "parse_sfx_delta": tts_sfx.parse_sfx_delta,
         "StreamingSplitter": sentence_splitter.StreamingSplitter, "prefix_emotion": tts_emotion.prefix_emotion,
@@ -103,6 +104,24 @@ class DirectionRequestTests(unittest.TestCase):
         self.assertEqual(sent[0]["cfg_scale"], va.DEFAULT_CFG_SCALE)
         self.assertEqual(s._tts_inflight["sentence"], "Seriously?")
         self.assertEqual(s._tts_inflight["emotion"], "casual_frustrated")
+
+    def test_direction_voice_keeps_its_queue_past_the_v1_first_audio_deadline(self):
+        # a whole-sentence voice is slower to first audio; the V1 deadline must not drop the turn's sentences
+        async def after_short_deadline(state):
+            with patched(state):
+                s = harness.new_session()
+                s.TTS_FIRST_AUDIO_TIMEOUT_MS, s.TTS_FIRST_AUDIO_TIMEOUT_MS_DIRECTION = 20, 5000
+                s._committed_turn_id = "t1"
+                s.tts._connected = True
+                s.voice_output = True
+                s._tts_sentence_queue = deque([("casual_happy", "One.", "deep", None),
+                                               ("casual_happy", "Two.", "deep", None)])
+                await s._pump_tts_queue()
+                await asyncio.sleep(0.1)
+                return s._tts_inflight is not None, len(s._tts_sentence_queue)
+
+        self.assertEqual(asyncio.run(after_short_deadline(DIRECTION)), (True, 1))
+        self.assertEqual(asyncio.run(after_short_deadline(REMAP)), (False, 0))   # V1 voices: unchanged deadline
 
 
 if __name__ == "__main__":

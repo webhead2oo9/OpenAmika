@@ -2636,6 +2636,10 @@ class DialogSession:
     MAX_UTTERANCE_SEC = 30
     TTS_FIRST_AUDIO_TIMEOUT_MS = 2000  # 发出 TTS 请求后 2s 内没首音频 -> 视为已到达，直接 protect
     TTS_INFLIGHT_TIMEOUT_MS = 5000  # 任一句 TTS 5s 内没回 audio_ready/error -> 跳过排空队列，防卡死
+    # Instruction voices (voice adapter `direction` mode, Breeze via vendor/breeze-bridge) answer only after the
+    # whole sentence is synthesized (1-2 s measured for a short sentence, more on a shared GPU): longer deadlines.
+    TTS_FIRST_AUDIO_TIMEOUT_MS_DIRECTION = 4000
+    TTS_INFLIGHT_TIMEOUT_MS_DIRECTION = 10000
     # 真打断"迟到确认"门控：仅在 AI 实际正在说话（_protected=True 且 TTS 还在活跃）时生效。
     # 从 VAD 首次检测到用户语音起：
     #   0  - INTERRUPT_GATE_LOCK_MS   锁定期，静默吃掉；帧入 probe 缓冲
@@ -3837,7 +3841,8 @@ class DialogSession:
         发出请求后 1s 内没收到任何首段音频 → 视为已到达，立即走 protect 流程，
         避免 TTS 回包丢失/慢时永远卡在 POST_COMMIT，音频不分界。
         """
-        await asyncio.sleep(self.TTS_FIRST_AUDIO_TIMEOUT_MS / 1000)
+        first_ms, _ = self._tts_timeouts_ms()
+        await asyncio.sleep(first_ms / 1000)
         # 已经收到首段 / 已经被清空 / 这个 task 不再是 inflight → 不做事
         if self._tts_first_audio_sent:
             return
@@ -3846,7 +3851,7 @@ class DialogSession:
             return
         # turn 已经换了（用户打断 / 延续）—— protect 流程里自会判断并跳过
         logger.warning(
-            f"[dlg {self._peer}] tts first-audio timeout ({self.TTS_FIRST_AUDIO_TIMEOUT_MS}ms), "
+            f"[dlg {self._peer}] tts first-audio timeout ({first_ms}ms), "
             f"turn={turn_id_at_request} — treat as arrived"
         )
         # 标记 + 清掉 inflight 和队列：TTS 看起来丢了，后面的句子也别指望
@@ -3859,18 +3864,25 @@ class DialogSession:
             self._protect_after_first_audio(turn_id_at_request, delay=0.0)
         )
 
+    def _tts_timeouts_ms(self) -> Tuple[int, int]:
+        """(first-audio, per-sentence) deadlines for the voice in use."""
+        if voice_adapter.live_state().mode == voice_adapter.MODE_DIRECTION:
+            return self.TTS_FIRST_AUDIO_TIMEOUT_MS_DIRECTION, self.TTS_INFLIGHT_TIMEOUT_MS_DIRECTION
+        return self.TTS_FIRST_AUDIO_TIMEOUT_MS, self.TTS_INFLIGHT_TIMEOUT_MS
+
     async def _tts_inflight_watchdog(
         self, task_id: str, turn_id_at_request: Optional[str],
     ):
-        """每句 TTS 兜底：发出后 TTS_INFLIGHT_TIMEOUT_MS 内既没 audio_ready 也没 error
+        """每句 TTS 兜底：发出后 per-sentence 时限（_tts_timeouts_ms）内既没 audio_ready 也没 error
         回来 → 视为这句丢了，清 inflight 并继续排空队列。否则一句卡死会让 _tts_inflight
         永远非空、"audio busy" 门一直为真，后续 inject（念弹幕 / SC）全被吞。"""
-        await asyncio.sleep(self.TTS_INFLIGHT_TIMEOUT_MS / 1000)
+        _, inflight_ms = self._tts_timeouts_ms()
+        await asyncio.sleep(inflight_ms / 1000)
         inflight = self._tts_inflight
         if inflight is None or inflight.get("task_id") != task_id:
             return                       # 已被 audio_ready / error / reset 消耗
         logger.warning(
-            f"[dlg {self._peer}] tts inflight timeout ({self.TTS_INFLIGHT_TIMEOUT_MS}ms) "
+            f"[dlg {self._peer}] tts inflight timeout ({inflight_ms}ms) "
             f"idx={inflight.get('idx')} turn={turn_id_at_request} — skip, drain queue"
         )
         self._tl_hook("note_tts_failed", turn_id_at_request, inflight.get("idx"))

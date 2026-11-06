@@ -121,8 +121,8 @@ on   error               {task_id, turn_id, error}
   the number of requests ahead, including the active request. Only the requesting Socket.IO client
   receives its events. HTTP 409 (Breeze busy, e.g. its web UI generating) is retried every 0.25 seconds for
   at most 1 second, then answered with an error: OpenAmika's dialog discards audio that starts later than
-  2 s (a turn's first sentence) or 5 s (any sentence), so it skips the sentence instead. Other upstream
-  failures return an error.
+  4 s (a turn's first sentence) or 10 s (any sentence) in direction mode, so it skips the sentence instead.
+  Other upstream failures return an error.
 - **Disconnect:** queued requests for that client are removed, and its active HTTP response is closed
   immediately (also cancelling connection/header waits and retry sleeps). The next remaining client
   keeps its FIFO place. This aborts the bridge's stream; whether Breeze stops model computation upon

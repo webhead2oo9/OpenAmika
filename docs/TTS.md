@@ -90,7 +90,9 @@ the rest.
   `very angry`), and one `cfg_scale` (default 3). The speaker is `tts_character`. The sound-effect tags the voice can
   make itself (`Laugh`, `Can_t_help_laughing` → `(laugh)`, `Sigh` → `(sigh)`, `Light_cough` → `(cough)`,
   `Throat_clear` → `(clears throat)`) open the next sentence's text instead of playing as local files; the other
-  four keep the local-file path. A tag after her last sentence is dropped.
+  four keep the local-file path. A tag after her last sentence is dropped. Such voices answer only after the
+  whole sentence is synthesized, so the dialog waits up to 4 s for a turn's first audio and 10 s per sentence
+  (2 s / 5 s for the other modes) before it skips a sentence.
 - **Off**: requests untouched, for a voice that understands the 69 keys directly (set `tts_character`).
 
 In every mode the `emotion` reported to the browser/avatar **stays the 69-key tag**, so face and voice never

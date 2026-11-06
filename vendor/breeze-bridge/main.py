@@ -32,9 +32,9 @@ SPEAKABLE_RE = re.compile(r"[^\W_]")
 SILENT_REPLY_S = 0.3
 DEFAULT_SAMPLE_RATE = 24000
 DEFAULT_SEED = 42
-# OpenAmika's dialog gives the first sentence of a turn 2 s to start sounding and every sentence 5 s
-# (speech/api.py TTS_FIRST_AUDIO_TIMEOUT_MS / TTS_INFLIGHT_TIMEOUT_MS); audio after that is discarded.
-# A busy Breeze (its web UI generating) therefore gets a short wait, then an error the dialog skips past.
+# OpenAmika's dialog gives a direction-mode voice 4 s for a turn's first sentence and 10 s for any sentence
+# (speech/api.py TTS_*_TIMEOUT_MS_DIRECTION); audio after that is discarded. A busy Breeze (its web UI
+# generating) therefore gets a short wait, then an error the dialog skips past.
 BUSY_MAX_WAIT_S = 1.0
 BUSY_BACKOFF_S = 0.25
 

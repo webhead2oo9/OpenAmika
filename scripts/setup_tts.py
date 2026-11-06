@@ -31,7 +31,7 @@ doll share one license), so the rest can run unattended. Then:
    HF_TOKEN (or a saved `hf auth login`). The token goes to huggingface.co only (never to the CDN it redirects to,
    nor to a mirror) and is never printed or saved. HF_ENDPOINT picks a mirror, as in huggingface_hub; every file is
    still checked against its pinned SHA-256.
-2. The voice server in vendor/tts-engine/ (everything but main.py and the docs is git-ignored):
+2. The voice server in vendor/tts-engine/ (everything but main.py, local_guard.py and the docs is git-ignored):
      .venv/          Python 3.11 venv (3.12 works, untested): torch + torchaudio 2.9.1 (cu128 / cpu) +
                      requirements-tts.txt
      GPT-SoVITS/     upstream RVC-Boss/GPT-SoVITS at a pinned commit (MIT), with its pretrained models (HuBERT,
@@ -84,7 +84,7 @@ from typing import Any, Callable, Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_ENGINE = ROOT / "vendor" / "tts-engine"
-ENGINE_FILES = ("main.py", "requirements-tts.txt", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md")
+ENGINE_FILES = ("main.py", "local_guard.py", "requirements-tts.txt", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md")
 IS_WIN = os.name == "nt"
 IS_MAC = sys.platform == "darwin"
 IS_LINUX = sys.platform.startswith("linux")

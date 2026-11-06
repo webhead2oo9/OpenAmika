@@ -32,8 +32,8 @@ ever disagree, the code wins, and you should fix this file in the same change.
    excludes every such file; never `git add -f` one.
 5. **Never commit machine-local state**: `settings.json`, `envs/`, `logs/`, `memory_f/`, `brain/memories/`,
    `config/ollama.json`, `config/seed.json`, `config/voice_map.json`, `avatar/models/*` (except its README),
-   `speech/models/*` (except `DOWNLOAD.md`), `vendor/tts-engine/*` (except `main.py`, `requirements-tts.txt`,
-   `README.md`, `LICENSE`, `THIRD_PARTY_NOTICES.md`). After onboarding, `config/build_f.json` and
+   `speech/models/*` (except `DOWNLOAD.md`), `vendor/tts-engine/*` (except `main.py`, `local_guard.py`,
+   `requirements-tts.txt`, `README.md`, `LICENSE`, `THIRD_PARTY_NOTICES.md`). After onboarding, `config/build_f.json` and
    `config/word_replace.json` hold the person's name and city: do not commit those changes to a public fork.
 6. **Do not disturb a running stack.** Her default ports are 53000, 5202, 8011, 8002, 8014 and 5215, her helpers'
    8642 (Hermes Agent) and 8787 (nanoMuse) (§2). To inspect,
