@@ -321,13 +321,40 @@
   let vmap = null;
   const FAMILY = (id) => id.replace(/\d+$/, "");
 
+  function showVoiceMode(mode) {
+    const show = (id, on) => { $(id).style.display = on ? "" : "none"; };
+    show("vmapVoiceField", mode === "remap");
+    show("vmapDetails", mode === "remap");
+    show("vdirCfgField", mode === "direction");
+    show("vdirDetails", mode === "direction");
+  }
+  $("vmapMode").addEventListener("change", () => showVoiceMode($("vmapMode").value));
+
+  function renderDirections() {
+    const grid = $("vdirGrid");
+    grid.replaceChildren();
+    for (const register of Object.keys(vmap.default_directions || {})) {
+      const fallback = vmap.default_directions[register];
+      const area = el("textarea", { "data-register": register, rows: "3", spellcheck: "false", placeholder: fallback });
+      area.value = (vmap.directions && vmap.directions[register]) || fallback;
+      const cell = el("div", { class: "vmap-cell" }, el("label", { text: register }), area);
+      const markChanged = () => cell.classList.toggle("changed", area.value.trim() !== "" && area.value.trim() !== fallback);
+      area.addEventListener("input", markChanged);
+      markChanged();
+      grid.append(cell);
+    }
+  }
+
   async function loadVoiceMap() {
     vmap = await getJSON("/api/voice_map").catch(() => null);
     if (!vmap) { $("vmapGrid").replaceChildren(el("div", { class: "card-hint", text: "Voice map unavailable." })); return; }
-    $("vmapEnabled").checked = !!vmap.enabled;
+    $("vmapMode").value = vmap.mode || "remap";
+    showVoiceMode($("vmapMode").value);
     $("vmapVoice").value = vmap.voice || "";
     $("vmapVoices").replaceChildren(...(vmap.v1_voices || []).map((v) => el("option", { value: v })));
+    $("vdirCfg").value = vmap.cfg_scale ?? vmap.default_cfg_scale ?? "";
     $("ttsCharShow").textContent = vmap.native_character || $("ttsCharShow").textContent;
+    renderDirections();
     // group old ids by family for optgroups
     const families = new Map();
     for (const id of vmap.v1_ids || []) {
@@ -364,22 +391,30 @@
     document.querySelectorAll("#vmapGrid select[data-key]").forEach((select) => {
       map[select.dataset.key] = select.value;
     });
+    const directions = {};
+    document.querySelectorAll("#vdirGrid textarea[data-register]").forEach((area) => {
+      directions[area.dataset.register] = area.value;
+    });
+    const mode = $("vmapMode").value;
     try {
       const response = await fetch("/api/voice_map", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: $("vmapEnabled").checked, voice: $("vmapVoice").value.trim(), map }),
+        body: JSON.stringify({ mode, voice: $("vmapVoice").value.trim(), map, directions, cfg_scale: $("vdirCfg").value }),
       });
       if (!response.ok) throw new Error("save failed (" + response.status + ")");
-      toast($("vmapEnabled").checked
-        ? "Voice adapter ON — speaking through " + ($("vmapVoice").value.trim() || "default") + "."
-        : "Voice adapter OFF — raw 69-key tags pass through (needs a V2-native voice).");
+      const saved = await response.json();
+      toast(mode === "remap"
+        ? "Voice adapter: V1 tags, speaking through " + (saved.voice || "default") + "."
+        : mode === "direction"
+          ? "Voice adapter: written directions at guidance " + saved.cfg_scale + ", speaking through " + ($("ttsCharShow").textContent || "tts_character") + "."
+          : "Voice adapter off: raw 69-key tags pass through (needs a V2-native voice).");
       loadVoiceMap();
     } catch (error) { toast(String(error.message || error), true); }
   }
   $("vmapSave").addEventListener("click", saveVoiceMap);
   $("vmapReset").addEventListener("click", async () => {
     await fetch("/api/voice_map/reset", { method: "POST" }).catch(() => {});
-    toast("Voice map reset to the shipped default (adapter ON, MekaHime_Amika, built-in map).");
+    toast("Voice adapter reset to the shipped default (V1 tags, MekaHime_Amika, built-in map and directions).");
     loadVoiceMap();
   });
 

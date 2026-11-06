@@ -38,8 +38,17 @@ to `neutral1`. Amika's voice has 69 tags, each with a recorded clip. `speech/voi
 internal `register_emotion` keys into these tags. A non-empty `turn_id` asks for one audio for the whole text
 (OpenAmika sends one sentence per request). `audio_format` is
 `wav` (default) or `opus`. Optional request fields: `speed` (0.5–2.0), `top_k` (1–100), `top_p` (0–1],
-`temperature` (0–2], `seed`. `audio_ready` may carry a `warning` (for example when words may be missing, or when a
-text had nothing to speak, which returns 0.3 s of silence instead of an error).
+`temperature` (0–2], `seed`, and, from the voice adapter's `direction` mode, `instruction` (a written delivery
+direction) and `cfg_scale` (1–5); servers that do not use a field ignore it. `audio_ready` may carry a `warning` (for
+example when words may be missing, or when a text had nothing to speak, which returns 0.3 s of silence instead of an
+error).
+
+## Optional: Breeze TTS 2 (`breeze-bridge/`)
+
+[`breeze-bridge/`](breeze-bridge/README.md) speaks this contract in front of a Breeze-TTS-2.cpp `breeze-server`
+that you install and run yourself, cloning a saved voice and following the written direction of each sentence
+(Setup → Voice → Voice adapter: *Written directions*). English and Chinese only; the Breeze weights are for research
+and non-commercial use.
 
 License: the server code is MIT (upstream GPT-SoVITS is MIT); the voice model is a MekaHime asset for
 personal, hobbyist use only.

@@ -68,6 +68,7 @@ certs/
 # (.venv/, GPT-SoVITS/, ffmpeg/, nltk_data/, Speakers/, cache/, downloads/) from public sources.
 vendor/tts-engine/*
 !vendor/tts-engine/main.py
+!vendor/tts-engine/local_guard.py
 !vendor/tts-engine/requirements-tts.txt
 !vendor/tts-engine/README.md
 !vendor/tts-engine/LICENSE

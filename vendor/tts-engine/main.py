@@ -205,7 +205,8 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                     help="at most this many extra takes of a run that came out too short (default: 2)")
     ap.add_argument("--no-cuda-graph", action="store_true", help="disable upstream's CUDA-graph AR acceleration")
     ap.add_argument("--no-warmup", action="store_true")
-    ap.add_argument("--cors", action="store_true", help="allow browser pages from any origin (local testing)")
+    ap.add_argument("--cors", action="store_true",
+                    help="admit browser pages from any origin (local testing); a non-loopback Host is still refused")
     ap.add_argument("--verbose", action="store_true", help="show upstream GPT-SoVITS console output")
     args = ap.parse_args(argv)
     for name in OPTIONS:
@@ -1558,6 +1559,8 @@ class Server:
         import socketio
         from aiohttp import web
 
+        import local_guard                   # identical copy of brain/local_guard.py, next to this file
+
         if not self.speakers:
             LOG.error("no speakers in %s (each needs character.json, the .ckpt/.pth weights and "
                       "references/emotions.json; run scripts/setup_tts.py)", self.args.speakers_dir)
@@ -1598,7 +1601,19 @@ class Server:
             return web.Response(text=f"{SERVER_NAME} {SERVER_VERSION}: GET /ping, /api/characters, /api/health; "
                                      "Socket.IO event tts_request_gateway\n")
 
-        app = web.Application()
+        @web.middleware
+        async def local_only(request: web.Request, handler: Callable) -> web.StreamResponse:
+            # every route and the Socket.IO handshake: refuse DNS-rebinding hosts and, unless --cors, other pages
+            why = local_guard.refusal(request.headers.get("Host"), None if self.args.cors else request.headers.get("Origin"))
+            if why:
+                LOG.info("refused %s %s: %s", request.method, request.path, why)
+                return web.json_response({"ok": False, "error": "Forbidden: local programs only."}, status=403)
+            return await handler(request)
+
+        # bound to loopback (the default), only this PC's programs may use it; a --host on the network is the
+        # operator's choice to serve other machines (tts_url elsewhere), whose Host headers are not loopback
+        on_loopback = self.args.host.strip("[]").lower() in local_guard.LOOPBACK
+        app = web.Application(middlewares=[local_only] if on_loopback else [])
         self.sio.attach(app)
         app.router.add_get("/ping", ping)
         app.router.add_get("/api/characters", characters)

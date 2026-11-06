@@ -4,8 +4,8 @@ Amika speaks through `main.py`, the **OpenAmika voice server, a MekaHime build o
 derived from the OpenSakura voice server ([zeekk0/OpenSakura](https://github.com/zeekk0/OpenSakura), MIT). It is
 a small MIT-licensed server on top of an unmodified upstream [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)
 checkout. Everything else in this folder is assembled from public sources by `scripts/setup_tts.py`, and Amika's
-voice comes from a Hugging Face repository. Only `main.py`, `requirements-tts.txt`, this README, `LICENSE` and
-`THIRD_PARTY_NOTICES.md` are in git.
+voice comes from a Hugging Face repository. Only `main.py`, `local_guard.py` (an identical copy of
+`brain/local_guard.py`), `requirements-tts.txt`, this README, `LICENSE` and `THIRD_PARTY_NOTICES.md` are in git.
 
 ## Install
 
@@ -79,6 +79,7 @@ What it builds:
 ```
 vendor/tts-engine/
   main.py                    the server (this repository, MIT)
+  local_guard.py             the Host/Origin check every OpenAmika local service applies (this repository, MIT)
   requirements-tts.txt       its Python packages (inference subset of upstream's list, see below)
   .venv/                     Python venv: torch + torchaudio 2.9.1 (+cu128 / +cpu) and requirements-tts.txt
   GPT-SoVITS/                RVC-Boss/GPT-SoVITS @ b4570b876f5c (2026-10-19), MIT, unmodified
@@ -128,7 +129,7 @@ vendor/tts-engine/.venv/bin/python vendor/tts-engine/main.py --port 8002        
 
 | flag | default | |
 |---|---|---|
-| `--port` / `--host` | `8002` / `127.0.0.1` | bind address |
+| `--port` / `--host` | `8002` / `127.0.0.1` | bind address. On loopback (the default) `local_guard.py` refuses a non-loopback `Host` (DNS rebinding) and pages from other origins; bound to a network address it serves other machines unguarded |
 | `--device` | `auto` | `cuda` (or `cuda:N`) when available, then Apple `mps`, then `cpu` |
 | `--half` / `--no-half` | fp16 on CUDA | |
 | `--character` | first folder in `Speakers/` | speaker loaded at start; requests for another speaker switch to it |
@@ -143,7 +144,7 @@ vendor/tts-engine/.venv/bin/python vendor/tts-engine/main.py --port 8002        
 | `--no-cuda-graph` | off | disable upstream's CUDA-graph acceleration of the GPT stage |
 | `--no-warmup` | off | skip the start-up synthesis that makes the first real request fast |
 | `--verbose` | off | show upstream's console output |
-| `--cors` | off | let browser pages on other origins connect (local testing) |
+| `--cors` | off | let browser pages on other origins connect (local testing); a non-loopback `Host` is still refused |
 
 Start-up loads the models and runs four short warm-up lines (English, Chinese, Japanese, and English with a kana
 word, which loads the language splitter); `/ping` answers `503 loading` until then and `ok` afterwards, which is
