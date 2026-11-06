@@ -601,8 +601,7 @@ class Service:
 
 @web.middleware
 async def local_only(request, handler):
-    """Programs on this PC only (the gateway, the launcher, scripts): a web page, whether another site's or one sent
-    through DNS rebinding, could otherwise save a bot token and allow-list of its own (local_guard.py)."""
+    """local_guard: refuse foreign pages and rebinding hosts."""
     why = local_guard.refusal(request.headers.get("Host"), request.headers.get("Origin"))
     if why:
         log.info(f"refused {request.method} {request.path}: {why}")

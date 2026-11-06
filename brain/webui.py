@@ -49,13 +49,11 @@ APP_NAME = "OpenAmika"
 load_dotenv(Path(__file__).with_name(".env"))
 
 app = Flask(__name__)
-# No browser talks to the brain: the speech gateway, the messengers service and the launcher do, from this PC.
-socketio = SocketIO(app, async_mode="threading")
+socketio = SocketIO(app, async_mode="threading")   # no browser clients; local_guard refuses foreign origins
 
 
 def _local_only(wsgi_app):
-    """The outermost WSGI layer, in front of Socket.IO too: a web page (another site's, or one reached through DNS
-    rebinding) gets 403 before any route or socket event runs (local_guard.py)."""
+    """Wraps Socket.IO too, so every route and socket event goes through local_guard."""
     def guarded(environ, start_response):
         why = local_guard.refusal(environ.get("HTTP_HOST"), environ.get("HTTP_ORIGIN"))
         if why:

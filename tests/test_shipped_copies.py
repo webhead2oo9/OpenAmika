@@ -2,8 +2,7 @@
 
   * brain/po_contract.py and speech/po_contract.py: the output contract both parsers load (the brain and the speech
     layer run in different environments, so each has its own copy). Compared in the working tree.
-  * brain/local_guard.py, speech/local_guard.py and messengers/local_guard.py: which requests the local services
-    answer (Host and Origin). Compared in the working tree.
+  * local_guard.py in brain/, speech/ and messengers/. Compared in the working tree.
   * her persona in brain/ (scenes.json, 例子.txt, 表层.txt, 思考.txt) and its shipped copy in brain/defaults/, which
     Setup → Danger zone → "Reset everything" restores. Compared in git's index: the Setup page edits the working-tree
     copies on purpose (her personality is yours to change), but what is committed must ship them equal.

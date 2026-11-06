@@ -1,10 +1,4 @@
-"""Web pages cannot drive the local services, and the Tools page never receives the helpers' keys. Offline.
-
-  * local_guard.refusal (brain/, speech/, messengers/ ship the same file): this PC's names pass, another site's page
-    and DNS rebinding (a foreign Host) are refused; *.ts.net only where Tailscale Serve is allowed (the gateway).
-  * the messengers service refuses a foreign page before /api/config can save a bot token of the page's choosing.
-  * GET /api/build_f/tools masks secrets, and a save that sends the mask back keeps the saved key.
-"""
+"""local_guard Host/Origin rules, the messengers API guard, and secret masking on the Tools page. Offline."""
 import asyncio
 import json
 import sys
@@ -23,10 +17,10 @@ import service  # noqa: E402  (messengers/service.py)
 
 
 @pytest.mark.parametrize("host, origin", [
-    ("127.0.0.1:5202", None),                              # the gateway, the launcher: no Origin
-    ("localhost:53000", "http://localhost:53000"),         # her own page
+    ("127.0.0.1:5202", None),                              # local programs send no Origin
+    ("localhost:53000", "http://localhost:53000"),
     ("[::1]:53000", "http://[::1]:53000"),
-    ("127.0.0.1:53000", "http://127.0.0.1:53000"),         # websocket-client (vision) sends its own origin
+    ("127.0.0.1:53000", "http://127.0.0.1:53000"),         # websocket-client (vision) sends a default Origin
     ("LOCALHOST:53000", "http://localhost:53000"),
 ])
 def test_this_pc_passes(host, origin):
@@ -35,11 +29,11 @@ def test_this_pc_passes(host, origin):
 
 @pytest.mark.parametrize("host, origin, why", [
     ("localhost:53000", "https://evil.test", "foreign origin"),
-    ("localhost:53000", "http://localhost:5202", "foreign origin"),     # another local port is another origin
-    ("localhost:53000", "null", "foreign origin"),                      # sandboxed iframes, file:// pages
-    ("evil.test:53000", "http://evil.test:53000", "unknown host"),      # DNS rebinding: same origin, foreign name
+    ("localhost:53000", "http://localhost:5202", "foreign origin"),     # another port is another origin
+    ("localhost:53000", "null", "foreign origin"),
+    ("evil.test:53000", "http://evil.test:53000", "unknown host"),      # DNS rebinding
     ("192.168.1.20:53000", None, "unknown host"),
-    ("pc.tailnet.ts.net:8447", "https://pc.tailnet.ts.net:8447", "unknown host"),   # tailnet only where allowed
+    ("pc.tailnet.ts.net:8447", "https://pc.tailnet.ts.net:8447", "unknown host"),   # tailnet only with allow_tailnet
     ("", None, "unknown host"),
     (None, None, "unknown host"),
 ])
@@ -124,17 +118,17 @@ def test_the_tools_page_gets_masked_keys_and_a_save_keeps_them(brain):
     hermes, ha = page["mcpServers"]["hermes"], page["mcpServers"]["ha"]
     assert "sk-saved" not in json.dumps(page) and "sk-auto" not in json.dumps(page) and "ha-saved" not in json.dumps(page)
     assert hermes["env"]["HERMES_API_KEY"] == f_tools.SECRET_MASK
-    assert hermes["env"]["HERMES_URL"] == "http://127.0.0.1:8642"      # not a secret: shown as it is
-    assert hermes["env"]["NANOMUSE_TOKEN_FILE"] == "C:/t"               # a path, not the token
+    assert hermes["env"]["HERMES_URL"] == "http://127.0.0.1:8642"
+    assert hermes["env"]["NANOMUSE_TOKEN_FILE"] == "C:/t"               # a path, not a secret
     assert ha["headers"]["Authorization"] == f_tools.SECRET_MASK
     page["mcpServers"]["hermes"]["persona_note"] = "edited on the page"
-    assert save(page).status_code == 200                                # the page saves what it was given
+    assert save(page).status_code == 200
     disk = json.loads(path.read_text("utf-8"))["mcpServers"]
     assert disk["hermes"]["env"]["HERMES_API_KEY"] == "sk-saved"
     assert disk["hermes"]["autostart"]["env"]["API_SERVER_KEY"] == "sk-auto"
     assert disk["ha"]["headers"]["Authorization"] == "Bearer ha-saved"
     assert disk["hermes"]["persona_note"] == "edited on the page"
-    page["mcpServers"]["hermes"]["env"]["HERMES_API_KEY"] = "sk-new"   # a typed key replaces the saved one
+    page["mcpServers"]["hermes"]["env"]["HERMES_API_KEY"] = "sk-new"
     assert save(page).status_code == 200
     assert json.loads(path.read_text("utf-8"))["mcpServers"]["hermes"]["env"]["HERMES_API_KEY"] == "sk-new"
 
