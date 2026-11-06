@@ -1,4 +1,4 @@
-"""Host/Origin check for the local services. Identical copies in brain/, speech/, messengers/.
+"""Host/Origin check for the local services. Identical copies in brain/, speech/, messengers/, vendor/breeze-bridge/.
 
 Refuses a non-loopback Host (DNS rebinding; *.ts.net allowed for Tailscale Serve where asked) and an Origin that
 is not the same host. A missing Origin passes (local programs). Not authentication.

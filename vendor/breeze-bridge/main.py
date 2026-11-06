@@ -23,22 +23,26 @@ import aiohttp
 import socketio
 from aiohttp import web
 
+import local_guard
+
 SERVER_NAME = "OpenAmika Breeze voice bridge"
 LOG = logging.getLogger("voice")
 TAG_RE = re.compile(r"【[^】\n]{1,24}】")
-# the speech layer's one `.` start anchor; a leading run of exactly three dots is an ellipsis, not an anchor
-ANCHOR_RE = re.compile(r"^\s*\.(?!\.\.(?!\.))")
 SPEAKABLE_RE = re.compile(r"[^\W_]")
 SILENT_REPLY_S = 0.3
 DEFAULT_SAMPLE_RATE = 24000
 DEFAULT_SEED = 42
-BUSY_MAX_WAIT_S = 10.0
+# OpenAmika's dialog gives the first sentence of a turn 2 s to start sounding and every sentence 5 s
+# (speech/api.py TTS_FIRST_AUDIO_TIMEOUT_MS / TTS_INFLIGHT_TIMEOUT_MS); audio after that is discarded.
+# A busy Breeze (its web UI generating) therefore gets a short wait, then an error the dialog skips past.
+BUSY_MAX_WAIT_S = 1.0
 BUSY_BACKOFF_S = 0.25
 
 
 def normalize_text(text: str) -> str:
-    """Remove legacy tags and the start anchor, not ellipses or Breeze's parenthesized vocal events."""
-    return " ".join(ANCHOR_RE.sub("", TAG_RE.sub("", text)).split())
+    """Remove legacy 【...】 tags, never Breeze's parenthesized vocal events. The speech layer's `.` start
+    anchor is the voice adapter's to remove (direction mode), so a leading `.` here is the sentence's own."""
+    return " ".join(TAG_RE.sub("", text).split())
 
 
 def speakable(text: str) -> bool:
@@ -171,13 +175,24 @@ class Server:
         self.sio.on("connect", self.connect)
         self.sio.on("disconnect", self.disconnect)
         self.sio.on("tts_request_gateway", self.handle)
-        self.app = web.Application()
+        self.app = web.Application(middlewares=[self.local_only])
         self.sio.attach(self.app)
         self.app.router.add_get("/ping", self.ping)
         self.app.router.add_get("/api/characters", self.characters)
         self.app.router.add_get("/api/health", self.health)
         self.app.cleanup_ctx.append(self.lifecycle)
         self.app.on_shutdown.append(self.shutdown_clients)
+
+    @web.middleware
+    async def local_only(self, request: web.Request, handler):
+        """local_guard on every route, the Socket.IO handshake included: refuse rebinding hosts and, unless
+        --cors, foreign pages."""
+        origin = None if self.args.cors else request.headers.get("Origin")
+        why = local_guard.refusal(request.headers.get("Host"), origin)
+        if why:
+            LOG.info("refused %s %s: %s", request.method, request.path, why)
+            return web.json_response({"ok": False, "error": "Forbidden: local programs only."}, status=403)
+        return await handler(request)
 
     async def lifecycle(self, _app: web.Application):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.args.request_timeout)) as session:

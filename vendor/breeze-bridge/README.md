@@ -10,7 +10,9 @@ models, or replace the default GPT-SoVITS server. English only.
 Start `breeze-server` separately, bound to loopback, with its HTTP API at `http://127.0.0.1:8080`.
 Save a voice named `main_voice` in its web UI. The bridge uses HTTP, not Breeze's WebSocket port 8081.
 Both servers are unauthenticated: **bind and connect only to loopback**. The bridge rejects non-loopback
-`--host` and `--breeze` addresses and does not follow upstream redirects.
+`--host` and `--breeze` addresses and does not follow upstream redirects. Like OpenAmika's other local
+services it applies `local_guard.py` (an identical copy of `brain/local_guard.py`) to every route and the
+Socket.IO handshake: a non-loopback `Host` (DNS rebinding) and a page from another origin get 403.
 
 From the OpenAmika root, using the existing Python 3.11 speech environment:
 
@@ -63,7 +65,8 @@ be running: the launcher's health check stays unavailable until Breeze answers `
 Then set Setup → Voice → Voice adapter to **Written directions**: each sentence then carries its register's
 `instruction` and the one `cfg_scale`, and the speaker is `tts_character` (`main_voice`). In the *V1 tags*
 mode the adapter would swap the speaker to `MekaHime_Amika`, which Breeze does not have; in *Off* the
-bridge strips the 69-key tags and Breeze speaks with its default instruction.
+bridge strips the 69-key tags, Breeze speaks with its default instruction, and the speech layer's leading
+`.` start anchor reaches Breeze.
 
 ### Flags
 
@@ -73,7 +76,7 @@ bridge strips the 69-key tags and Breeze speaks with its default instruction.
 | `--port` | `8002` | Bridge HTTP + Socket.IO port. |
 | `--breeze` | `http://127.0.0.1:8080` | Breeze's loopback HTTP origin, without a path or credentials. |
 | `--seed` | `42` | Fallback seed. At 42, absent request seeds are omitted so Breeze uses its own documented default; another value is sent when a request omits `seed`. A request seed always wins. |
-| `--cors` | off | Allow Socket.IO browser pages from any origin, like the GPT-SoVITS server; for local testing only. Without it, Socket.IO enforces same-origin browser connections. |
+| `--cors` | off | Admit browser pages from any origin (local testing only); a non-loopback `Host` is still refused. |
 | `--request-timeout` | `120` | Positive seconds for one synthesis, including busy retries and PCM streaming, excluding time in the bridge queue. |
 
 The console logs one line per request: voice, CFG (or `default`), normalized character count, audio
@@ -104,10 +107,10 @@ on   error               {task_id, turn_id, error}
 - **Voice:** `character_id` becomes Breeze's `voice_id`, normally `main_voice`. The bridge does not
   modify, upload or delete voices. Breeze owns model/sampling defaults beyond the forwarded fields.
 - **Text:** every `【...】` tag with 1–24 interior characters and no newline is removed, including tags
-  in the middle of a sentence. The speech layer's one leading `.` anchor is removed (a leading `...` is an
-  ellipsis and stays; `....` loses one dot); whitespace is collapsed.
-  Parenthesized vocal events such as `(sigh)`, `(laugh)`, `(cough)` and `(clears throat)` are preserved.
-  `【casual_happy】.(sigh) Seriously?` becomes `(sigh) Seriously?`. The returned `text` is normalized.
+  in the middle of a sentence, and whitespace is collapsed. The speech layer's leading `.` start anchor is
+  removed by the voice adapter in direction mode, not here, so a sentence's own leading dot (`.5 litres`,
+  `...I mean`) reaches Breeze. Parenthesized vocal events such as `(sigh)`, `(laugh)`, `(cough)` and
+  `(clears throat)` are preserved. The returned `text` is normalized.
 - **No words:** blank input is `bad request: empty text`. Nonblank text containing only tags,
   punctuation, symbols or emoji gets 0.3 seconds of silence with a `warning`, without calling Breeze.
 - **WAV only:** each request gets exactly one complete final WAV, even without `turn_id`. Unsupported
@@ -116,8 +119,10 @@ on   error               {task_id, turn_id, error}
   `X-Sample-Format: s16le`; the WAV preserves samples and sample rate. Duration is sample count / rate.
 - **Queue:** a single global FIFO worker runs one Breeze speech request at a time. `queue_position` is
   the number of requests ahead, including the active request. Only the requesting Socket.IO client
-  receives its events. HTTP 409 (Breeze busy, possibly from its web UI) is retried every 0.25 seconds for
-  at most 10 seconds, also bounded by `--request-timeout`; other upstream failures return an error.
+  receives its events. HTTP 409 (Breeze busy, e.g. its web UI generating) is retried every 0.25 seconds for
+  at most 1 second, then answered with an error: OpenAmika's dialog discards audio that starts later than
+  2 s (a turn's first sentence) or 5 s (any sentence), so it skips the sentence instead. Other upstream
+  failures return an error.
 - **Disconnect:** queued requests for that client are removed, and its active HTTP response is closed
   immediately (also cancelling connection/header waits and retry sleeps). The next remaining client
   keeps its FIFO place. This aborts the bridge's stream; whether Breeze stops model computation upon

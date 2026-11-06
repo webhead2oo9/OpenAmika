@@ -22,22 +22,35 @@ _spec.loader.exec_module(bridge)
 
 
 @pytest.mark.parametrize(("text", "expected"), [
-    ("【casual_happy】.Hello there.", "Hello there."),
-    (" \t.【happy2】Hello\n there. ", "Hello there."),
-    ("....I mean, no.", "...I mean, no."),
+    ("【casual_happy】Hello there.", "Hello there."),
+    (" \t【happy2】Hello\n there. ", "Hello there."),
     ("...I mean, no.", "...I mean, no."),
+    (".5 litres, please.", ".5 litres, please."),
     ("Hello, 【sad1】  my friend.", "Hello, my friend."),
-    ("【happy2】.(sigh) Seriously? (laugh) (cough) (clears throat)",
+    ("【happy2】(sigh) Seriously? (laugh) (cough) (clears throat)",
      "(sigh) Seriously? (laugh) (cough) (clears throat)"),
-    ("【" + "a" * 24 + "】.Hi.", "Hi."),
-    ("【" + "a" * 25 + "】.Hi.", "【" + "a" * 25 + "】.Hi."),
-    ("【line\nbreak】.Hi.", "【line break】.Hi."),
+    ("【" + "a" * 24 + "】Hi.", "Hi."),
+    ("【" + "a" * 25 + "】Hi.", "【" + "a" * 25 + "】Hi."),
+    ("【line\nbreak】Hi.", "【line break】Hi."),
     ("【sad1】... ?! …", "... ?! …"),
     ("【sad1】...", "..."),
     ("", ""),
 ])
 def test_normalize_text(text, expected):
     assert bridge.normalize_text(text) == expected
+
+
+@pytest.mark.parametrize(("sentence", "spoken"), [
+    (".5 litres, please.", ".5 litres, please."),
+    ("...I mean, no.", "...I mean, no."),
+    ("(sigh) Seriously?", "(sigh) Seriously?"),
+])
+def test_direction_mode_removes_the_start_anchor_exactly_once(sentence, spoken):
+    # speech/api.py sends 【key】 + "." + sentence; the adapter (direction mode) then the bridge see it
+    import voice_adapter
+    payload = {"text": "【casual_happy】." + sentence, "character_id": "main_voice"}
+    voice_adapter.adapt_request(payload, voice_adapter.default_state()._replace(mode=voice_adapter.MODE_DIRECTION))
+    assert bridge.normalize_text(payload["text"]) == spoken
 
 
 @pytest.mark.parametrize("text", ["【happy2】...", "【sad1】?! …", "___", "~", "😀"])
@@ -81,7 +94,7 @@ def test_cfg_scale_invalid(value):
 
 
 def test_optional_fields_and_configured_seed():
-    base = {"text": ".Hello", "character_id": "main_voice"}
+    base = {"text": "Hello", "character_id": "main_voice"}
     assert bridge.parse_job("client", base).fields == {"text": "Hello", "voice_id": "main_voice"}
     assert bridge.parse_job("client", dict(base, instruction=None, cfg_scale=None, seed=None)).fields == {
         "text": "Hello", "voice_id": "main_voice"}
@@ -228,6 +241,29 @@ class TestBridgeServer(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(response.status, 503)
             self.assertTrue(await response.text())
 
+    async def test_rebinding_hosts_and_foreign_pages_are_refused(self):
+        for headers in ({"Host": "evil.test:8002"}, {"Origin": "http://evil.test"}):
+            for path in ("/ping", "/api/characters", "/api/health"):
+                async with self.http.get(self.server.make_url(path), headers=headers) as response:
+                    self.assertEqual(response.status, 403, (path, headers))
+        page = Client()
+        with self.assertRaises(socketio.exceptions.ConnectionError):
+            await page.sio.connect(str(self.server.make_url("")), transports=["websocket"],
+                                   headers={"Origin": "http://evil.test"})
+        self.assertFalse(self.fake.calls)
+
+    async def test_cors_admits_other_pages_but_never_a_rebinding_host(self):
+        args = bridge.parse_args(["--breeze", str(self.upstream.make_url("")), "--cors"])
+        server = TestServer(bridge.Server(args).app)
+        await server.start_server()
+        try:
+            async with self.http.get(server.make_url("/ping"), headers={"Origin": "http://evil.test"}) as response:
+                self.assertEqual(response.status, 200)
+            async with self.http.get(server.make_url("/ping"), headers={"Host": "evil.test"}) as response:
+                self.assertEqual(response.status, 403)
+        finally:
+            await server.close()
+
     async def test_characters_with_no_saved_voice(self):
         self.fake.voices = [{"id": "temporary", "saved": False, "seconds": 1.5}]
         async with self.http.get(self.server.make_url("/api/characters")) as response:
@@ -236,7 +272,7 @@ class TestBridgeServer(unittest.IsolatedAsyncioTestCase):
     async def test_direction_forwarding_and_complete_wav(self):
         client = await self.client()
         other = await self.client()
-        queued = await client.request("direction", "【casual_happy】.(sigh) Seriously?", instruction="Irritated.",
+        queued = await client.request("direction", "【casual_happy】(sigh) Seriously?", instruction="Irritated.",
                                       cfg_scale=3, seed=11, language="Japanese", audio_format="opus")
         self.assertEqual(queued["queue_position"], 0)
         self.assertEqual(queued["sentence_count"], 1)
