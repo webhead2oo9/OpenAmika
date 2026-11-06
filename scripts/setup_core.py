@@ -577,7 +577,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         embed = steps.run("memory (embedder)", ensure_env, "memory", base_py, device, args, needs=needs)
         steps.run("memory model", ensure_hf_model, "memory model", embed, ENVS / "embed", emb_model,
                   ["brain/embed_server.py", "--download", "--model", emb_model],
-                  "~2.3 GB" if emb_model == EMBED_MODEL_DEFAULT else "size depends on the model", args,
+                  "~1.5 GB" if emb_model == EMBED_MODEL_DEFAULT else "size depends on the model", args,
                   needs=("memory (embedder)",))
         if vision_on:
             eyes = steps.run("vision (her eyes)", ensure_env, "vision", base_py, device, args, needs=needs)

@@ -568,6 +568,13 @@ envs\brain\Scripts\python.exe launch.py --check
 - Both setups fetch only what changed (a requirements file, the pinned revision of her repository). Stop her first:
   pip cannot replace files a running service holds open on Windows (`Access is denied`, and the summary shows only
   `command failed (1)`).
+- The memory embedder changed from BAAI/bge-m3 to google/embeddinggemma-2 (2026-11-06). The setup never rewrites an
+  existing `settings.json`, so an install from before keeps the bge-m3 `embedder` block while `config/build_f.json`
+  now names `embeddinggemma-2-d768`; the brain then refuses that memory profile (its `embedding.json` says
+  `bge-m3-d768`). Either keep bge-m3: set `"embedding_model": "bge-m3-d768"` in `config/build_f.json`; or switch: put
+  the new `embedder` block from `settings.example.json` into `settings.json`, run the setup (it installs the new
+  packages and the model), start only the embedder, and re-embed the profile with
+  `envs\brain\Scripts\python.exe brain\migrate_embeddings.py --profile memory_f\live --apply` before starting her.
 
 ## 6. Configuration
 
