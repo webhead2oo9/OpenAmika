@@ -15,5 +15,6 @@ opencv-python
 Pillow
 numpy
 websocket-client
-# the same major version as the embedder's (brain/requirements-embedder.txt): both write the one Hugging Face cache
+# 1.x, as before; the embedder (brain/requirements-embedder.txt) may run 2.x: both read and write the one Hugging Face
+# cache layout
 huggingface_hub>=1.31,<2

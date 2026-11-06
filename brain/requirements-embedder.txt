@@ -1,10 +1,13 @@
-# Environment for brain/embed_server.py (local BAAI/bge-m3 embeddings for her memory, port 8011).
-# scripts/setup_core.py installs it into envs/embed: a CUDA build of torch first (torch==2.10.0 from
-# https://download.pytorch.org/whl/cu128), then this file, then the weights into the Hugging Face cache
-# (~2.3 GB for BAAI/bge-m3; otherwise the first start downloads them).
-# Installed by the setup (2026-11-04): torch 2.10.0 (cu128), sentence-transformers 5.7, transformers 5.22,
-# huggingface_hub 1.33.
+# Environment for brain/embed_server.py (local google/embeddinggemma-2 embeddings for her memory, port 8011).
+# scripts/setup_core.py installs it into envs/embed: a CUDA build of torch + torchvision first (torch==2.10.0,
+# torchvision==0.25.0 from https://download.pytorch.org/whl/cu128), then this file, then the weights into the
+# Hugging Face cache (~1.5 GB for google/embeddinggemma-2; otherwise the first start downloads them).
+# EmbeddingGemma 2 (Gemma 4 architecture) needs sentence-transformers 6.1+ and a transformers that knows it; its
+# processor also loads an image and a video processor (Pillow, torchvision) even for text-only use.
+# Tested (2026-11-06): torch 2.10.0, torchvision 0.25.0, sentence-transformers 6.2.0, transformers 5.22.2,
+# huggingface_hub 2.4.0, pillow.
 torch>=2.1
-sentence-transformers>=3.0,<6
-transformers>=4.40,<6
-huggingface_hub>=0.23,<2
+sentence-transformers>=6.1,<7
+transformers>=5.22,<6
+huggingface_hub>=1.0,<3
+pillow

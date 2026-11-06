@@ -528,13 +528,13 @@ def install(g):
             fact['date']=max(times[i] for i in fact['source_ids'])
         return {'facts':facts,'rejected':[{k:r.get(k) for k in ('index','id','reason')} for r in rejected]}
 
-    # Embedding provider (2026-10-05): 'local' = embed_server.py on this box (BAAI/bge-m3 cut to 768 dims,
-    # chosen by Amika_Embedding_Experiment), metered as provider "local" at zero price; 'gemini' = the
+    # Embedding provider (2026-10-05): 'local' = embed_server.py on this box (google/embeddinggemma-2 at its native
+    # 768 dims since 2026-11-06; BAAI/bge-m3 cut to 768 before), metered as provider "local" at zero price; 'gemini' = the
     # original Google call. The memory profile's embedding.json marker refuses a model switch without a
     # migration (migrate_embeddings.py), because query and document vectors must come from one model.
     embedding_provider=str(cfg.get('embedding_provider','gemini') or 'gemini').lower()
     embedding_url=(os.getenv('AMIKA_EMBEDDING_URL') or cfg.get('embedding_url') or 'http://127.0.0.1:8011').rstrip('/')
-    embedding_model=cfg.get('embedding_model') or ('bge-m3-d768' if embedding_provider=='local' else 'gemini-embedding-2')
+    embedding_model=cfg.get('embedding_model') or ('embeddinggemma-2-d768' if embedding_provider=='local' else 'gemini-embedding-2')
     g['F_EMBEDDING']={'provider':embedding_provider,'model':embedding_model,'url':embedding_url if embedding_provider=='local' else None}
     def _unit_vectors(raw,batch):
         if len(raw)!=len(batch):raise ValueError('Embedding count mismatch')
@@ -555,6 +555,12 @@ def install(g):
                 batch=texts[offset:offset+32]
                 data=json_call('local',embedding_model,embedding_url+'/embed',{'Content-Type':'application/json'},
                                {'texts':batch,'task_type':task_type},phase)
+                served=data.get('model')
+                if served and served!=embedding_model:
+                    # settings.json embedder.tag and config/build_f.json embedding_model name the model; vectors of
+                    # another model must never enter this profile (query and document vectors from one model only)
+                    raise RuntimeError(f'The embedder serves {served} but config/build_f.json embedding_model is '
+                                       f'{embedding_model}: use one tag in both, or migrate with brain/migrate_embeddings.py')
                 output.extend(_unit_vectors(data.get('embeddings',[]),batch))
             return output
         if not g.get('GEMINI_KEY'):raise RuntimeError('Embedding key unavailable')

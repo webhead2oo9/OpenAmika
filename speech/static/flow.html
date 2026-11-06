@@ -347,7 +347,7 @@
       sections: [{ title: "Notes", items: [
         "Model choices change the rates of new calls only; each ledger row keeps its own snapshot.",
         "Hermes Agent is configured to use OpenRouter too, with its own model (config/tools.json env) — its spend shows up under Agents.",
-        "Embeddings do not go here: they are local (bge-m3)." ] }] },
+        "Embeddings do not go here: they are local (EmbeddingGemma 2)." ] }] },
     { id: "clerk", title: "Post-speech clerk", sub: "f_tools.py · quote-verified · after she spoke", icon: "✓", layer: "agent", group: "brain/f_tools.py",
       source: "brain/f_tools.py run_clerk() / after_turn() · config/tools.json (clerk_role, limits)",
       summary: "She decides, the clerk transcribes. After a turn's text is final, one small metered call reads what you asked and what she said out loud, and hands over only what she agreed to — quoting your own words as proof. It cannot start anything you did not ask for this turn.",
@@ -365,8 +365,8 @@
         "iot: python -m openamika_iot in servers/openamika-iot (tools list_devices, get_state, set_state, set_nickname — auto; activate_scene — confirm).",
         "A result that arrives later is relayed in her own words; the Use page's tool dialogue card shows the exchange." ] }] },
     // ── local model services ──
-    { id: "embedder", title: "Embedder", sub: "brain/embed_server.py · bge-m3 → 768 d", icon: "⋮", layer: "model", group: "core component", port: 8011,
-      source: "brain/embed_server.py · settings.json embedder (BAAI/bge-m3, tag bge-m3-d768, fp16, cuda) · POST /embed · health GET /health",
+    { id: "embedder", title: "Embedder", sub: "brain/embed_server.py · EmbeddingGemma 2 · 768 d", icon: "⋮", layer: "model", group: "core component", port: 8011,
+      source: "brain/embed_server.py · settings.json embedder (google/embeddinggemma-2, tag embeddinggemma-2-d768, bf16, cuda) · POST /embed · health GET /health",
       summary: "Local embeddings for memory: the brain sends text and gets 768-dimensional vectors back. Started first by the launcher because the brain needs it from the start; the brain reaches it through AMIKA_EMBEDDING_URL.",
       sections: [{ title: "Used for", items: [
         "One query vector per turn (cached per query text) for semantic retrieval.",

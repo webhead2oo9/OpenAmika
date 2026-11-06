@@ -302,7 +302,7 @@ class OllamaClient(OpenRouterClient):
         return {"text": receipt["content"], "raw": data, "receipt": receipt}
 
     def embed(self, *args, **kwargs):
-        raise ValueError("The Ollama transport serves chat roles only (embeddings run on the local bge-m3 server)")
+        raise ValueError("The Ollama transport serves chat roles only (embeddings run on the local embedding server)")
 
 
 # ------------------------------------------------------------------ brain routes

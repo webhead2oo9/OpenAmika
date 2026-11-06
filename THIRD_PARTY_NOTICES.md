@@ -23,7 +23,7 @@ If you publish your own app or content built with the Cubism SDK, read Live2D's 
 | SenseVoiceSmall model files (`iic/SenseVoiceSmall`) | `scripts/download_sensevoice.py` → `speech/models/` | FunASR Model Open Source License Agreement |
 | Silero VAD | `pip install silero-vad` (speech env) | MIT |
 | FunASR, ModelScope | pip (speech env) | MIT / Apache-2.0 |
-| BAAI/bge-m3 (memory embeddings) | `brain/embed_server.py`, Hugging Face cache | MIT |
+| google/embeddinggemma-2 (memory embeddings) | `brain/embed_server.py`, Hugging Face cache | Apache-2.0 |
 | Qwen/Qwen3-VL-2B-Instruct, Qwen3-VL-4B-Instruct (optional vision) | `vision/vlm_service.py`, Hugging Face cache | Apache-2.0 |
 | Qwen/Qwen2.5-VL-3B-Instruct (optional vision) | same | Qwen Research License (non-commercial); check the model card |
 | HuggingFaceTB/SmolVLM2 (optional vision) | same | Apache-2.0 |

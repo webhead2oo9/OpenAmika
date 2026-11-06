@@ -204,7 +204,7 @@ Every step in detail, and what each message means: [docs/TOOLS.md](docs/TOOLS.md
 - Hermes Agent (MIT) and nanoMuse (GPL-3.0-or-later) are separate programs you install yourself; OpenAmika only
   talks to them.
 - Built on [SenseVoice](https://github.com/FunAudioLLM/SenseVoice), [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS),
-  [bge-m3](https://huggingface.co/BAAI/bge-m3), [Qwen3-VL](https://github.com/QwenLM/Qwen3-VL),
+  [EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2), [Qwen3-VL](https://github.com/QwenLM/Qwen3-VL),
   [pixi-live2d-display](https://github.com/guansss/pixi-live2d-display) with the
   [Live2D Cubism SDK](https://www.live2d.com/en/sdk/about/), [OpenRouter](https://openrouter.ai),
   [Ollama](https://ollama.com) and the [Model Context Protocol](https://modelcontextprotocol.io). Thank you.

@@ -35,6 +35,11 @@
       "output": 0,
       "source": "local GPU model BAAI/bge-m3 (fp16, 768-d truncation) served by embed_server.py; no provider charge"
     },
+    "local:embeddinggemma-2-d768": {
+      "input": 0,
+      "output": 0,
+      "source": "local GPU model google/embeddinggemma-2 (text encoder, bf16, native 768-d) served by embed_server.py; no provider charge"
+    },
     "alibaba/qwen3.8-max": {
       "input": 2,
       "output": 6,
