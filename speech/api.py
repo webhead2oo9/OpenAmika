@@ -153,8 +153,8 @@ app = FastAPI(
 
 
 class LocalOnly:
-    """Outermost ASGI layer, for HTTP and WebSocket alike: every page is served from this origin, so a request from
-    another site's page, or one sent through DNS rebinding, is refused before any route or socket runs
+    """ASGI guard for HTTP and WebSocket alike, ahead of every route, static mount and socket: every page is served
+    from this origin, so a request from another site's page, or one sent through DNS rebinding, is refused
     (local_guard.py). *.ts.net hosts pass for Tailscale_Serve_OpenAmika.bat."""
 
     def __init__(self, app):

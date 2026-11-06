@@ -53,7 +53,8 @@ Probed on COM3 (2026-10-24): DTR high + RTS low → bootloader menu; DTR low + R
 firmware uses XON/XOFF; with RTS/CTS the host waits on CTS and nothing is ever sent).
 
 A starter `data/configuration.yaml` (zigbee2mqtt 2.x; the launcher fills in the COM port, and `GENERATE` makes
-zigbee2mqtt create your own network keys on its first start):
+zigbee2mqtt create your own network keys on its first start). An existing `data/configuration.yaml` is not changed:
+add `host: 127.0.0.1` under `frontend:` yourself, or its dashboard (full control of your devices) is open to your LAN.
 
 ```yaml
 homeassistant:

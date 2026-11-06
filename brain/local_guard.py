@@ -6,9 +6,10 @@ checks keep such pages out:
   * Host: the request must name this PC (localhost, 127.0.0.1, ::1), or for the speech gateway behind
     Tailscale_Serve_OpenAmika.bat a *.ts.net name. Any other name is DNS rebinding: a foreign site's name made to
     point at 127.0.0.1 so that the browser treats this service as that site.
-  * Origin: a browser names the page a request comes from. It must be this very host; a page of another site is
-    refused. Requests without an Origin come from programs (the gateway, the launcher, the vision service), not from
-    a web page.
+  * Origin: a browser names the page a request comes from on every POST, fetch() and WebSocket. It must be this very
+    host; a page of another site is refused. Requests without an Origin pass: programs on this PC (the gateway, the
+    launcher) send none, and neither does a browser on a plain link, image or form-less GET, whose answer the
+    foreign page cannot read. This is not authentication: anything that can reach the port may use it.
 """
 from urllib.parse import urlsplit
 
