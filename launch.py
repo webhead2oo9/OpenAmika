@@ -1222,7 +1222,7 @@ def preflight(cfg, emb, vis, tools, tools_error, services, agents, procs, deep=F
                    f'IoT on from the Tools page to read and accept docs/IOT_DISCLAIMER.md')
     if deep:
         for key, packages in (
-            ('brain_python', ['flask', 'flask_cors', 'flask_socketio', 'requests', 'dotenv', 'google.genai', 'tzdata']),
+            ('brain_python', ['flask', 'flask_socketio', 'requests', 'dotenv', 'google.genai', 'tzdata']),
             ('speech_python', ['torch', 'torchaudio', 'soundfile', 'numpy', 'fastapi', 'uvicorn', 'funasr', 'modelscope', 'silero_vad', 'socketio', 'aiohttp', 'multipart']),
         ):
             code = ('import importlib.util; names=' + repr(packages) +

@@ -319,7 +319,7 @@ def test_status_payload_lists_jobs_and_kinds(wired):
     assert payload["servers"]["hermes"]["kind"] == "agent" and payload["servers"]["iot"]["kind"] == "mcp"
     assert payload["servers"]["hermes"]["persona_note"].startswith("你电脑上的小帮手")
     assert payload["jobs"][0]["step"] == "opening browser"
-    assert payload["config"] is wired["cfg"]           # the raw document, env/cwd included, for the page's editor
+    assert payload["config"] == wired["cfg"]           # tools.json, env/cwd included, for the page's editor (no secrets here)
 
 
 # ───────────────────────────── health ─────────────────────────────

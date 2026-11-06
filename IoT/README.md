@@ -37,7 +37,7 @@ turns IoT off again until you accept it. If you do not agree, do not enable IoT.
 |---|---|
 | zigbee2mqtt, installed by you ([Windows guide](https://www.zigbee2mqtt.io/guide/installation/03_windows.html); tested with 2.9.1 built with corepack pnpm) | `zigbee2mqtt/` (git-ignored) |
 | its data: `configuration.yaml`, network key, coordinator backup, paired devices; private, never commit it | `data/` (git-ignored; starter config below) |
-| broker config (local only, anonymous) | `mosquitto.conf` |
+| broker config (127.0.0.1 only, anonymous) | `mosquitto.conf` |
 | one-time admin installs: CP210x driver (via Windows Update), Mosquitto (winget) | `Setup_IoT_admin.bat` → `Install_CP210x_driver.ps1`, `Setup_IoT_admin.ps1` |
 | Windows fix for the dongle (see below) | `patch_herdsman_windows.py` — re-run after reinstalling zigbee2mqtt |
 | nicknames she uses for the plugs | `../servers/openamika-iot/devices.json` (created on first use, git-ignored; format: `devices.example.json`) |
@@ -60,13 +60,14 @@ homeassistant:
   enabled: false
 mqtt:
   base_topic: zigbee2mqtt
-  server: mqtt://localhost:1883
+  server: mqtt://127.0.0.1:1883
 serial:
   adapter: ember
   rtscts: false
 frontend:
   enabled: true
   port: 8080
+  host: 127.0.0.1
 advanced:
   log_level: info
   network_key: GENERATE

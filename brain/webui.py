@@ -4,7 +4,6 @@ OpenAmika：模板占位符布局（静态前缀在 {daily_context} 之前）、
 逐轮语言行、共享输出契约 po_contract（深层/表层解析与发声端同一套规则）。
 """
 from flask import Flask, render_template, request, jsonify, Response
-from flask_cors import CORS
 from flask_socketio import SocketIO
 import requests as http_requests
 import contextlib
@@ -22,6 +21,7 @@ import threading
 import time as _time
 import re
 
+import local_guard
 import po_contract
 
 # Her clock. build_f.json "timezone" (an IANA name such as America/Los_Angeles) is set from the Setup page
@@ -49,8 +49,24 @@ APP_NAME = "OpenAmika"
 load_dotenv(Path(__file__).with_name(".env"))
 
 app = Flask(__name__)
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+# No browser talks to the brain: the speech gateway, the messengers service and the launcher do, from this PC.
+socketio = SocketIO(app, async_mode="threading")
+
+
+def _local_only(wsgi_app):
+    """The outermost WSGI layer, in front of Socket.IO too: a web page (another site's, or one reached through DNS
+    rebinding) gets 403 before any route or socket event runs (local_guard.py)."""
+    def guarded(environ, start_response):
+        why = local_guard.refusal(environ.get("HTTP_HOST"), environ.get("HTTP_ORIGIN"))
+        if why:
+            print(f"[guard] refused {environ.get('REQUEST_METHOD')} {environ.get('PATH_INFO')}: {why}")
+            start_response("403 Forbidden", [("Content-Type", "text/plain; charset=utf-8")])
+            return [b"Forbidden: the brain answers OpenAmika's own programs only."]
+        return wsgi_app(environ, start_response)
+    return guarded
+
+
+app.wsgi_app = _local_only(app.wsgi_app)
 
 XAI_KEY = os.getenv("XAI_API_KEY")
 XAI_BASE = "https://api.x.ai/v1/chat/completions"

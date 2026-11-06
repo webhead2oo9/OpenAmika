@@ -32,7 +32,7 @@ Zigbee devices ── Zigbee USB dongle ── zigbee2mqtt ── mosquitto (:18
 ```
 
 1. **mosquitto** — install from mosquitto.org; run with the 2-line `mosquitto.conf` here
-   (`mosquitto -c mosquitto.conf`). LAN-only by default; add auth if the broker leaves localhost.
+   (`mosquitto -c mosquitto.conf`). It listens on 127.0.0.1 only; add auth before it listens anywhere else.
 2. **zigbee2mqtt** — install per zigbee2mqtt.io with your dongle's serial port;
    `base_topic: zigbee2mqtt`, `homeassistant: enabled: false`. Pair devices from its own dashboard
    (pairing is deliberately NOT a model-callable tool).

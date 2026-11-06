@@ -23,15 +23,16 @@ import soundfile as sf
 import torchaudio
 import socketio
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
+from starlette.websockets import WebSocketClose
 from typing_extensions import Annotated
 
 from model import SenseVoiceSmall
 from funasr.utils.postprocess_utils import rich_transcription_postprocess
 from sentence_splitter import StreamingSplitter
 from hane_parser import SurfaceSpeechExtractor, DeepSpeechExtractor
+import local_guard
 import stt_carry
 from tts_emotion import prefix_emotion
 from tts_sfx import parse_sfx_delta, resolve_sfx, list_files as sfx_list_files
@@ -150,13 +151,30 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+class LocalOnly:
+    """Outermost ASGI layer, for HTTP and WebSocket alike: every page is served from this origin, so a request from
+    another site's page, or one sent through DNS rebinding, is refused before any route or socket runs
+    (local_guard.py). *.ts.net hosts pass for Tailscale_Serve_OpenAmika.bat."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            headers = {k.decode("latin-1"): v.decode("latin-1") for k, v in scope.get("headers") or ()}
+            why = local_guard.refusal(headers.get("host"), headers.get("origin"), allow_tailnet=True)
+            if why:
+                logger.warning(f"[guard] refused {scope['type']} {scope.get('path')}: {why}")
+                if scope["type"] == "websocket":
+                    await WebSocketClose(code=1008)(scope, receive, send)
+                else:
+                    await PlainTextResponse("Forbidden: open OpenAmika from its own page.", status_code=403)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(LocalOnly)
 
 STATIC_DIR = Path(__file__).parent / "static"
 STATIC_DIR.mkdir(exist_ok=True)

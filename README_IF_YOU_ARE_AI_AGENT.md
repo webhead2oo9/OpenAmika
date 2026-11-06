@@ -639,7 +639,8 @@ Not installed by the setup; the core runs without them.
   one 72–96 GB; otherwise Ollama on a second PC (Setup → Brain takes its URL), or, in almost every case the better
   answer, Semi-Local. Fully Local is slower too (§5.4, *How fast*).
 - **Phone**: `Tailscale_Serve_OpenAmika.bat` (needs Tailscale with MagicDNS + HTTPS); one conversation tab at a time.
-  Every page it serves includes the Tools page, whose raw editor shows `config/tools.json` with the helpers' keys.
+  Every page it serves includes the Tools page and its controls: every device on the tailnet can change her settings
+  and the helpers' start commands (the raw editor masks the helpers' keys).
 
 ### 8.1 Her helpers: Hermes Agent, nanoMuse and the paper doll
 
@@ -747,8 +748,8 @@ helper's run ended (Hermes's final clarify) is dropped after 30 minutes.
   …\.env`, `OK agent nanomuse  online at http://127.0.0.1:8787`, `OK paper doll  Host · 64 motions — stands in for her
   helpers on the Use page`.
 - While she runs: `GET http://127.0.0.1:53000/api/build_f/tools` → `servers.hermes.kind == "agent"`,
-  `servers.hermes.health.ok == true` (`reason`, `detail`, `version`). Its `config` field is the raw `tools.json`
-  with the keys: read `servers` only. `GET http://127.0.0.1:53000/api/avatar/models` lists `Host` with `"role":
+  `servers.hermes.health.ok == true` (`reason`, `detail`, `version`). Its `config` field is `tools.json` with the
+  keys masked: read `servers` only. `GET http://127.0.0.1:53000/api/avatar/models` lists `Host` with `"role":
   "agent"` and `"stage": {"scale": 0.42, "nx": 0.84, "ny": 0.7, "head_y": 0.26}`; the Use page's browser console
   logs `[Live2D] agent avatar Host ready (64 motions)`.
 
