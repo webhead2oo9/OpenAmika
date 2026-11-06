@@ -469,8 +469,10 @@ OpenRouter key's own usage counter remains the only complete number. What an age
 context for the relay and may be remembered like anything she said. The Tools page shows exactly
 what is enabled, every call with the words of yours that authorised it, and every job; the master
 switch removes everything from her context. `config/tools.json` holds the helpers' keys in plain text
-on your PC, and the Tools page's raw editor shows them: anyone who can open her pages can read them
-(with `Tailscale_Serve_OpenAmika.bat`, every device on your tailnet).
+on your PC. The Tools page's raw editor masks values in `env`, `headers` and `autostart.env` whose names
+look like keys, tokens or passwords (leave the mask in place to keep a key, or type a new one); a token
+written into a `url` or `args` stays visible. Its pages answer only this PC's browser, or with
+`Tailscale_Serve_OpenAmika.bat` every device on your tailnet, which can then change the helpers' start commands.
 
 ## Requirements
 

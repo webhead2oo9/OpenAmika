@@ -39,6 +39,7 @@ import socketio
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from core import (CONFIG_PATH, LIMITS, TERMINAL_EVENTS, TITLES, apply_update, incoming_text, light,  # noqa: E402
                   load_config, public_view, replies_from, save_config, split_message, turn_context)
+import local_guard  # noqa: E402
 
 try:
     import discord
@@ -598,8 +599,18 @@ class Service:
                 "discord_library": discord is not None, "config_path": str(CONFIG_PATH)}
 
 
+@web.middleware
+async def local_only(request, handler):
+    """local_guard: refuse foreign pages and rebinding hosts."""
+    why = local_guard.refusal(request.headers.get("Host"), request.headers.get("Origin"))
+    if why:
+        log.info(f"refused {request.method} {request.path}: {why}")
+        return web.json_response({"ok": False, "error": "Forbidden: use the OpenAmika page."}, status=403)
+    return await handler(request)
+
+
 def build_app(service: Service) -> web.Application:
-    app = web.Application(client_max_size=64 * 1024)
+    app = web.Application(client_max_size=64 * 1024, middlewares=[local_only])
 
     async def health(_request):
         return web.json_response(service.health())

@@ -2,6 +2,7 @@
 
   * brain/po_contract.py and speech/po_contract.py: the output contract both parsers load (the brain and the speech
     layer run in different environments, so each has its own copy). Compared in the working tree.
+  * local_guard.py in brain/, speech/ and messengers/. Compared in the working tree.
   * her persona in brain/ (scenes.json, 例子.txt, 表层.txt, 思考.txt) and its shipped copy in brain/defaults/, which
     Setup → Danger zone → "Reset everything" restores. Compared in git's index: the Setup page edits the working-tree
     copies on purpose (her personality is yours to change), but what is committed must ship them equal.
@@ -24,6 +25,13 @@ def test_both_output_contracts_are_the_same_file():
     brain, speech = ROOT / "brain" / "po_contract.py", ROOT / "speech" / "po_contract.py"
     assert text(brain) == text(speech), ("brain/po_contract.py and speech/po_contract.py differ: change both "
                                          "(copy one over the other)")
+
+
+@pytest.mark.parametrize("folder", ("speech", "messengers"))
+def test_every_service_guards_requests_with_the_same_file(folder):
+    brain, other = ROOT / "brain" / "local_guard.py", ROOT / folder / "local_guard.py"
+    assert text(brain) == text(other), (f"brain/local_guard.py and {folder}/local_guard.py differ: change all three "
+                                        "(copy brain/local_guard.py over the others)")
 
 
 def staged(rel: str) -> bytes:

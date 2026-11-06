@@ -190,6 +190,49 @@ def _save_config(doc: dict):
         _cfg_sig = None  # force reload
 
 
+# Secrets in GET /api/build_f/tools are masked; a save that sends the mask back keeps the stored value.
+SECRET_MASK = "•••••• saved: leave this text to keep it"
+_SECRET_NAME = re.compile(r"key|token|secret|passw|auth|bearer|cookie|credential", re.I)
+_NOT_SECRET = re.compile(r"_(?:file|path|dir)$", re.I)   # NANOMUSE_TOKEN_FILE names a file, not the token
+
+
+def _secret_maps(scfg):
+    """(where, map) for each name→value map of a server entry that may hold a secret."""
+    if not isinstance(scfg, dict):
+        return
+    for where in ("env", "headers"):
+        if isinstance(scfg.get(where), dict):
+            yield where, scfg[where]
+    auto = scfg.get("autostart")
+    if isinstance(auto, dict) and isinstance(auto.get("env"), dict):
+        yield "autostart.env", auto["env"]
+
+
+def public_config(cfg: dict) -> dict:
+    """Copy of tools.json with secret values masked."""
+    doc = json.loads(json.dumps(cfg))
+    for scfg in (doc.get("mcpServers") or {}).values():
+        for _where, values in _secret_maps(scfg):
+            for name, value in values.items():
+                if value and _SECRET_NAME.search(str(name)) and not _NOT_SECRET.search(str(name)):
+                    values[name] = SECRET_MASK
+    return doc
+
+
+def restore_secrets(doc: dict, current: dict):
+    """Replace masks in doc with the stored values from current."""
+    saved = current.get("mcpServers") or {}
+    for server, scfg in (doc.get("mcpServers") or {}).items():
+        before = dict(_secret_maps(saved.get(server)))
+        for where, values in _secret_maps(scfg):
+            for name, value in values.items():
+                if value == SECRET_MASK:
+                    old = (before.get(where) or {}).get(name)
+                    if not old:
+                        raise ValueError(f"Server {server!r}: re-enter {name} (no saved value to keep).")
+                    values[name] = old
+
+
 def _limits():
     lim = _config().get("limits") or {}
 
@@ -1723,10 +1766,10 @@ def _status_payload():
             "blocked": blocked,
         }
     jobs = sorted((_public_job(j) for j in _JOBS.values()), key=lambda j: j["started"] or 0)
-    # "config" is the raw tools.json: the page's raw editor and every save are built from it, so the
+    # "config" is tools.json (secrets masked): the page's raw editor and every save are built from it, so the
     # fields the cards do not show (env, cwd, headers) survive a click on the page.
     return {"ok": True, "enabled": bool(cfg.get("enabled")), "clerk_role": cfg.get("clerk_role") or "surface",
-            "limits": cfg.get("limits") or {}, "servers": servers, "config": cfg,
+            "limits": cfg.get("limits") or {}, "servers": servers, "config": public_config(cfg),
             "iot_disclaimer": iot_disclaimer.status(cfg),
             "dialogue": list(_DIALOGUE)[-80:],
             "pending": sorted(_PENDING.values(), key=lambda p: p["ts"]),
@@ -1806,6 +1849,7 @@ def install_tools(g):
             # IoT turns on only after the IoT safety statement was accepted (POST /api/build_f/iot/disclaimer); the
             # acceptance on disk is kept as it is, whatever the posted document says about it
             current = _config()
+            restore_secrets(clean, current)
             if iot_disclaimer.turns_on_iot(clean) and not iot_disclaimer.accepted(current):
                 return jsonify({"ok": False, "code": iot_disclaimer.REQUIRED_CODE,
                                 "error": iot_disclaimer.REQUIRED_MESSAGE}), 409

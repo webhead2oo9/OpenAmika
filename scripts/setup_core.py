@@ -75,7 +75,7 @@ TORCH_DISTS = ("torch", "torchaudio", "torchvision")   # installed from the PyTo
 # name, folder under envs/, requirements, torch packages, modules that must import
 ENV_SPECS = {
     "brain": ("brain", "brain/requirements.txt", (),
-              ["flask", "flask_cors", "flask_socketio", "socketio", "requests", "dotenv", "numpy", "mcp", "google.genai",
+              ["flask", "flask_socketio", "socketio", "requests", "dotenv", "numpy", "mcp", "google.genai",
                "tzdata"]),
     "speech": ("speech", "speech/requirements.txt", ("torch", "torchaudio"),
                ["torch", "torchaudio", "soundfile", "numpy", "fastapi", "uvicorn", "funasr", "modelscope", "silero_vad",
